@@ -1,4 +1,4 @@
-const CACHE = "rendicion-v1";
+const CACHE = "rendicion-v2";
 const SHELL = ["./", "index.html", "config.js", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => {
@@ -10,7 +10,7 @@ self.addEventListener("fetch", e => {
   const sameOrigin = url.origin === location.origin;
   if (sameOrigin) {
     // Páginas y configuración: primero la red (para recibir actualizaciones), con respaldo sin conexión.
-    e.respondWith(fetch(req).then(r => { const c = r.clone(); caches.open(CACHE).then(x => x.put(req, c)); return r; }).catch(() => caches.match(req).then(m => m || caches.match("index.html"))));
+    e.respondWith(fetch(req, { cache: "no-cache" }).then(r => { const c = r.clone(); caches.open(CACHE).then(x => x.put(req, c)); return r; }).catch(() => caches.match(req).then(m => m || caches.match("index.html"))));
   } else {
     // Librerías externas y fuentes: del caché si ya están, y se actualizan en segundo plano.
     e.respondWith(caches.match(req).then(m => {
