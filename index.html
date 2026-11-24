@@ -72,6 +72,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .pickrow dt{color:var(--muted)} .pickrow dd{margin:0;font-weight:600;overflow-wrap:anywhere}
 .mailbox{display:flex;flex-direction:column;gap:10px}
 .copyline{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.gsel{margin-top:6px;padding:6px 8px;font-size:.85rem;width:auto;max-width:100%}
 @media (max-width:420px){.pickrow{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:no-preference){button{transition:filter .15s}button:hover:not(:disabled){filter:brightness(1.08)}}
 </style>
@@ -116,6 +117,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <dl class="pickrow" id="summary"></dl>
     <label class="btn scanbtn" for="qrfile" id="scanlabel" tabindex="0">Escanear QR del CAE
       <input id="qrfile" type="file" accept="image/*" capture="environment" multiple hidden></label>
+    <label for="gasto">Tipo de gasto del comprobante
+      <select id="gasto"><option value="">Elegí el tipo de gasto</option></select></label>
+    <p class="sub" style="font-size:.82rem;margin-top:-6px">Elegilo antes de cargar cada comprobante. Se aplica a los que cargues a partir de ahora, y después lo podés cambiar en la lista.</p>
     <button id="livebtn" class="ghost" style="width:100%">Escanear con la cámara en vivo</button>
     <div id="live" hidden style="display:flex;flex-direction:column;gap:8px">
       <video id="vid" playsinline muted autoplay style="width:100%;max-height:60vh;border-radius:8px;background:#000;object-fit:cover"></video>
@@ -163,6 +167,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <dl class="pickrow" id="vsum"></dl>
     <ul class="inv" id="vlist"></ul>
     <div class="tot" id="vtot"></div>
+    <div id="vgwrap"><h2 style="font-size:.95rem;margin-bottom:8px">Por tipo de gasto</h2><dl class="pickrow" id="vgasto"></dl></div>
     <div id="vbal"></div>
     <div id="vmsg"></div>
     <div class="row">
@@ -209,6 +214,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     {id:"t-mlopez-600000",worker:"mlopez",amount:600000},
     {id:"t-mmessi-700000",worker:"mmessi",amount:700000}
   ];
+  var GASTOS=["Combustible","Mantenimiento flota","Bulonería","Indumentaria personal","Insumos de limpieza"];
   var TIPOS={1:"Factura A",2:"Nota de Débito A",3:"Nota de Crédito A",6:"Factura B",7:"Nota de Débito B",8:"Nota de Crédito B",11:"Factura C",12:"Nota de Débito C",13:"Nota de Crédito C",51:"Factura M",19:"Factura E"};
   var $=function(i){return document.getElementById(i)};
   var money=function(n){return new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS"}).format(n)};
@@ -252,6 +258,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
   $("cc").addEventListener("input",check);
 
   $("start").addEventListener("click",function(){
+    $("gasto").value="";
     S.worker=WORKERS.find(function(x){return x.id===$("worker").value});
     S.empresa=$("empresa").value;
     S.transfer=$("transfer").value==="none"?{id:"libre-"+S.worker.id+"-"+Date.now(),amount:0,none:true}:TRANSFERS.find(function(t){return t.id===$("transfer").value});
@@ -268,6 +275,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
       var t=document.createElement("div");t.className="t";t.textContent=compLabel(v);
       var m=document.createElement("div");m.className="m";m.textContent=v.sinqr?v.fecha+" · Sin QR ni CAE":v.fecha+" · CUIT "+v.cuit+" · CAE "+v.cae;
       left.appendChild(t);left.appendChild(m);
+      if(S.done){var gt=document.createElement("div");gt.className="m";gt.textContent=v.gasto||"";left.appendChild(gt)}
+      else{var gs=document.createElement("select");gs.className="gsel";gs.setAttribute("aria-label","Tipo de gasto");
+        GASTOS.forEach(function(g){var o=document.createElement("option");o.value=g;o.textContent=g;gs.appendChild(o)});gs.value=v.gasto||"";
+        gs.addEventListener("change",function(){v.gasto=gs.value;renderS2()});left.appendChild(gs)}
       var right=document.createElement("div");right.style.textAlign="right";
       var a=document.createElement("div");a.className="num t";a.textContent=money(v.importe);right.appendChild(a);
       if(!S.done){var b=document.createElement("button");b.className="ghost small";b.textContent="Quitar";b.style.marginTop="4px";
@@ -295,12 +306,17 @@ button:disabled{opacity:.45;cursor:not-allowed}
       tipo:TIPOS[j.tipoCmp]||("Comprobante "+j.tipoCmp),fecha:f.length===3?f[2]+"/"+f[1]+"/"+f[0]:"",importe:Math.round(imp*100)/100};
   }
 
+  GASTOS.forEach(function(g){var o=document.createElement("option");o.value=g;o.textContent=g;$("gasto").appendChild(o)});
+  function needGasto(){if(!$("gasto").value){msg("s2msg","warn","Elegí primero el tipo de gasto.");try{$("gasto").focus()}catch(e){}return true}return false}
+  function gastoTotals(){var t={};S.inv.forEach(function(v){var g=v.gasto||"Sin tipo";t[g]=(t[g]||0)+v.importe});
+    return GASTOS.concat(["Sin tipo"]).filter(function(g){return t[g]}).map(function(g){return[g,t[g]]})}
   function compLabel(v){if(v.sinqr)return v.tipo+(v.nroTxt?" "+v.nroTxt:"");return v.manual&&!v.nro?v.tipo:v.tipo+" "+v.pv+"-"+v.nro}
   async function addFromText(text){
     var v;try{v=parseQR(text)}catch(e){msg("s2msg","bad",e.message||"No se pudo leer el QR.");return false}
     return claimInv(v);
   }
   async function claimInv(v){
+    if(needGasto())return false;v.gasto=$("gasto").value;
     if(S.inv.some(function(x){return x.cae===v.cae})){msg("s2msg","bad","El CAE "+v.cae+" ya está en esta rendición. No se puede cargar dos veces.");return false}
     var ref=db.doc("cae/"+v.cae);
     function dup(o){var who=(o&&o.ownerName)||"otro trabajador";
@@ -418,13 +434,16 @@ button:disabled{opacity:.45;cursor:not-allowed}
     }
     busy=false;renderS2();
   });
-  $("scanlabel").addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();$("qrfile").click()}});
+  $("scanlabel").addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();$("scanlabel").click()}});
+  $("scanlabel").addEventListener("click",function(e){if(needGasto())e.preventDefault()});
   $("paste").addEventListener("input",function(){if(/[?&]p=/.test($("paste").value)&&!busy)$("addpaste").click()});
   $("addpaste").addEventListener("click",async function(){
+    if(needGasto())return;
     var t=$("paste").value.trim();if(!t||busy)return;busy=true;var ok=await addFromText(t);busy=false;if(ok)$("paste").value="";renderS2();
   });
 
   $("addmanual").addEventListener("click",async function(){
+    if(needGasto())return;
     if(busy)return;
     var cae=$("m_cae").value.replace(/\D/g,""),imp=$("m_imp").value.trim().replace(/\./g,"").replace(",","."),fe=$("m_fecha").value,cuit=$("m_cuit").value.replace(/\D/g,""),nro=$("m_nro").value.trim();
     if(cae.length!==14){msg("s2msg","bad","El CAE tiene 14 dígitos.");return}
@@ -438,13 +457,14 @@ button:disabled{opacity:.45;cursor:not-allowed}
     renderS2();
   });
   $("addsinqr").addEventListener("click",function(){
+    if(needGasto())return;
     if(busy)return;
     var imp=parseFloat($("q_imp").value.trim().replace(/\./g,"").replace(",",".")),fe=$("q_fecha").value,nro=$("q_nro").value.trim();
     if(!(imp>0)){msg("s2msg","bad","Ingresá el importe total.");return}
     if(!fe){msg("s2msg","bad","Ingresá la fecha de la factura.");return}
     if(!nro){msg("s2msg","bad","Ingresá el número de comprobante.");return}
     var f=fe.split("-");
-    var v={cae:"",cuit:"",pv:"",nro:"",nroTxt:nro,tipo:"Comprobante sin QR",fecha:f[2]+"/"+f[1]+"/"+f[0],importe:Math.round(imp*100)/100,manual:true,sinqr:true};
+    var v={cae:"",cuit:"",pv:"",nro:"",nroTxt:nro,tipo:"Comprobante sin QR",fecha:f[2]+"/"+f[1]+"/"+f[0],importe:Math.round(imp*100)/100,manual:true,sinqr:true,gasto:$("gasto").value};
     S.inv.push(v);msg("s2msg","","");showLast(v);
     ["q_imp","q_fecha","q_nro"].forEach(function(i){$(i).value=""});$("sinqr").open=false;renderS2();
   });
@@ -460,8 +480,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
       ["Transferencia",S.transfer.none?"Sin transferencia pendiente":money(S.transfer.amount)]]);
     var ul=$("vlist");ul.innerHTML="";
     S.inv.forEach(function(v){var li=document.createElement("li"),l=document.createElement("div"),t=document.createElement("div");t.className="t";t.textContent=compLabel(v);
-      var m=document.createElement("div");m.className="m";m.textContent=v.sinqr?v.fecha+" · Sin QR ni CAE":v.fecha+" · CUIT "+(v.cuit?fmtCuit(v.cuit):"-")+" · CAE "+v.cae;
+      var m=document.createElement("div");m.className="m";m.textContent=(v.gasto||"Sin tipo")+" · "+(v.sinqr?v.fecha+" · Sin QR ni CAE":v.fecha+" · CUIT "+(v.cuit?fmtCuit(v.cuit):"-")+" · CAE "+v.cae);
       l.appendChild(t);l.appendChild(m);var r=document.createElement("div");r.className="num t";r.textContent=money(v.importe);li.appendChild(l);li.appendChild(r);ul.appendChild(li)});
+    dl($("vgasto"),gastoTotals().map(function(p){return[p[0],money(p[1])]}));
     var tt=$("vtot");tt.innerHTML="";
     (S.transfer.none?[["Total rendido ("+S.inv.length+" comprobantes)",money(total)]]:[["Transferido",money(S.transfer.amount)],["Total rendido ("+S.inv.length+" comprobantes)",money(total)]]).forEach(function(p,i,arr){
       var a=document.createElement("div"),b=document.createElement("div");a.textContent=p[0];b.textContent=p[1];if(i===arr.length-1){a.className=b.className="big"}tt.appendChild(a);tt.appendChild(b)});
@@ -478,7 +499,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     var total=S.inv.reduce(function(a,v){return a+v.importe},0);
     try{
       await db.doc("rendiciones/"+S.transfer.id).set({done:true,worker:S.worker.id,workerName:S.worker.name,empresa:S.empresa,cc:S.cc,
-        fecha:S.fecha,transferido:S.transfer.amount,rendido:total,cantidad:S.inv.length,cae:S.inv.filter(function(v){return v.cae}).map(function(v){return v.cae}),sinCae:S.inv.filter(function(v){return !v.cae}).length,at:new Date().toISOString()});
+        fecha:S.fecha,transferido:S.transfer.amount,rendido:total,cantidad:S.inv.length,cae:S.inv.filter(function(v){return v.cae}).map(function(v){return v.cae}),sinCae:S.inv.filter(function(v){return !v.cae}).length,comprobantes:S.inv.map(function(v){return{cae:v.cae||"",gasto:v.gasto||"",importe:v.importe,fecha:v.fecha,comprobante:compLabel(v)}}),at:new Date().toISOString()});
     }catch(e){busy=false;$("vconfirm").disabled=false;msg("vmsg","bad","No se pudo guardar la rendición. Intentá de nuevo.");return}
     S.done=true;busy=false;$("vconfirm").disabled=false;renderS3();step(4);
   });
@@ -524,10 +545,16 @@ button:disabled{opacity:.45;cursor:not-allowed}
       d.setDrawColor(190,198,207);d.setLineWidth(.2);d.line(M,y+2,W-M,y+2);y+=8}
     head();
     S.inv.forEach(function(v){
-      if(y>268){d.addPage();y=20;head()}
+      if(y>262){d.addPage();y=20;head()}
       d.setFont("helvetica","normal");d.setFontSize(9.5);d.setTextColor(23,33,43);
       d.text(v.fecha,M,y);d.text(compLabel(v),M+24,y);d.text(v.cuit||"-",M+78,y);d.text(v.cae||"Sin CAE",M+106,y);
-      d.text(money(v.importe),W-M,y,{align:"right"});y+=7});
+      d.text(money(v.importe),W-M,y,{align:"right"});
+      d.setFontSize(8);d.setTextColor(95,105,118);d.text("Gasto: "+(v.gasto||"Sin tipo"),M+24,y+4.2);y+=11});
+    var gt=gastoTotals();
+    if(gt.length){if(y>230){d.addPage();y=20}
+      y+=2;d.setFont("helvetica","bold");d.setFontSize(9);d.setTextColor(95,105,118);d.text("POR TIPO DE GASTO",M,y);y+=6;
+      d.setFont("helvetica","normal");d.setFontSize(10);d.setTextColor(23,33,43);
+      gt.forEach(function(p){d.text(p[0],M,y);d.text(money(p[1]),W-M,y,{align:"right"});y+=6})}
     if(y>240){d.addPage();y=20}
     y+=4;d.setDrawColor(23,33,43);d.setLineWidth(.5);d.line(M,y,W-M,y);y+=8;
     var diff=S.transfer.amount-total;
@@ -555,7 +582,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     try{var f=pdfFile();await navigator.share({files:[f],title:f.name,text:mailText().subject});}
     catch(e){if(e&&e.name==="AbortError")return;msg("s3msg","bad","No se pudo abrir el menú de compartir. Usá Descargar PDF.")}
   });
-  $("newbtn").addEventListener("click",function(){S={worker:null,empresa:"",transfer:null,cc:"",inv:[],done:false,fecha:""};
+  $("newbtn").addEventListener("click",function(){$("gasto").value="";S={worker:null,empresa:"",transfer:null,cc:"",inv:[],done:false,fecha:""};
     $("worker").value="";$("cc").value="";msg("s2msg","","");msg("s3msg","","");loadTransfers();step(1)});
 
   /* ---------- base de datos (Firestore por REST) ---------- */
@@ -601,6 +628,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
   function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
   function stopLive(){liveOn=false;if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}$("live").hidden=true;$("livebtn").hidden=false}
   async function startLive(){
+    if(needGasto())return;
     if(liveOn)return;
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg("s2msg","warn","Este navegador no permite la cámara en vivo. Usá el botón de foto.");return}
     try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false})}
