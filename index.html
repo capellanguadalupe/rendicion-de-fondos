@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Rendición de Fondos</title>
+<meta name="theme-color" content="#0a5c8f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Rendición">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}img{max-width:100%}[hidden]{display:none!important}
+
+/* Layout: una sola columna de trabajo, tres pasos (datos, comprobantes, PDF y mail). Estilo de formulario administrativo. */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --fg:#17212b; --muted:#5b6876; --line:#d6dce3;
+  --accent:#0a5c8f; --accent-fg:#ffffff; --accent-soft:#e1eef7;
+  --ok:#1b7a4b; --ok-soft:#e1f3e9; --warn:#9a5b00; --warn-soft:#fdf0d8; --bad:#b3261e; --bad-soft:#fbe5e3;
+  --font-display:'Space Grotesk',system-ui,sans-serif; --font-body:'Inter',system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10161c; --surface:#18212a; --fg:#e8edf2; --muted:#9aa8b6; --line:#2c3844;
+  --accent:#5aaee0; --accent-fg:#06202f; --accent-soft:#16303f;
+  --ok:#5fcf93; --ok-soft:#143325; --warn:#f0b955; --warn-soft:#3a2b0e; --bad:#ff8a80; --bad-soft:#3d1a18; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10161c; --surface:#18212a; --fg:#e8edf2; --muted:#9aa8b6; --line:#2c3844;
+  --accent:#5aaee0; --accent-fg:#06202f; --accent-soft:#16303f;
+  --ok:#5fcf93; --ok-soft:#143325; --warn:#f0b955; --warn-soft:#3a2b0e; --bad:#ff8a80; --bad-soft:#3d1a18; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;line-height:1.45;
+  padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1,h2{font-family:var(--font-display);margin:0;text-wrap:balance}
+h1{font-size:1.5rem;letter-spacing:-.01em}
+h2{font-size:1.05rem}
+.sub{color:var(--muted);margin:2px 0 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.steps{display:flex;gap:6px;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.steps span{flex:1;padding-bottom:6px;border-bottom:3px solid var(--line)}
+.steps span.on{color:var(--fg);border-color:var(--accent);font-weight:600}
+.steps span.done{border-color:var(--ok)}
+label{display:flex;flex-direction:column;gap:5px;font-weight:600;font-size:.9rem}
+select,input[type=text],input[type=email]{font:inherit;font-weight:400;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px 12px;width:100%;min-width:0}
+select:disabled,input:disabled{opacity:.7}
+button,.btn{font:inherit;font-weight:600;border-radius:6px;padding:11px 16px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-fg);cursor:pointer;text-align:center;text-decoration:none;display:inline-block}
+button.ghost,.btn.ghost{background:transparent;color:var(--accent)}
+button.small{padding:6px 10px;font-size:.82rem}
+button:disabled{opacity:.45;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.msg{padding:10px 12px;border-radius:6px;font-size:.9rem;border:1px solid transparent}
+.msg.bad{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
+.msg.warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+.msg.ok{background:var(--ok-soft);color:var(--ok);border-color:var(--ok)}
+.msg.info{background:var(--accent-soft);color:var(--fg);border-color:var(--line)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.row>*{min-width:0}
+.scanbtn{font-size:1.05rem;padding:18px 16px;width:100%}
+.inv{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.inv li{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+.inv li:first-child{border-top:0}
+.inv .t{font-weight:600}
+.inv .m{color:var(--muted);font-size:.82rem;overflow-wrap:anywhere}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.tot{display:grid;grid-template-columns:1fr auto;gap:4px 12px;border-top:2px solid var(--fg);padding-top:10px}
+.tot .big{font-family:var(--font-display);font-weight:700;font-size:1.15rem}
+.tot div:nth-child(even){text-align:right;font-variant-numeric:tabular-nums}
+.pickrow{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:.9rem}
+.pickrow dt{color:var(--muted)} .pickrow dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.mailbox{display:flex;flex-direction:column;gap:10px}
+.copyline{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+@media (max-width:420px){.pickrow{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:no-preference){button{transition:filter .15s}button:hover:not(:disabled){filter:brightness(1.08)}}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+<main>
+  <div id="install" class="msg info" hidden style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <span id="installtxt" style="flex:1 1 200px"></span>
+    <button id="installbtn" class="small" hidden>Instalar</button>
+    <button id="installno" class="ghost small">Ahora no</button>
+  </div>
+  <header>
+    <h1>Rendición de fondos</h1>
+    <p class="sub">Cargá los comprobantes con el QR del CAE y generá el PDF para enviar.</p>
+  </header>
+  <div class="steps" id="steps"><span class="on">1 · Datos</span><span>2 · Comprobantes</span><span>3 · Verificación</span><span>4 · PDF y mail</span></div>
+  <div id="dbmsg"></div>
+
+  <!-- Paso 1 -->
+  <section class="card" id="s1">
+    <h2>Datos de la rendición</h2>
+    <label for="worker">Nombre
+      <select id="worker"><option value="">Elegí tu nombre</option></select></label>
+    <label for="empresa">Empresa
+      <select id="empresa" disabled><option value="">Primero elegí tu nombre</option></select></label>
+    <label for="transfer">Transferencia pendiente de rendir
+      <select id="transfer" disabled><option value="">Primero elegí tu nombre</option></select></label>
+    <label for="cc">Centro de costos
+      <input id="cc" type="text" placeholder="Se completa al elegir tu nombre" readonly autocomplete="off"></label>
+    <div id="s1msg"></div>
+    <button id="start" disabled>Comenzar a escanear</button>
+  </section>
+
+  <!-- Paso 2 -->
+  <section class="card" id="s2" hidden>
+    <h2>Comprobantes a rendir</h2>
+    <dl class="pickrow" id="summary"></dl>
+    <label class="btn scanbtn" for="qrfile" id="scanlabel" tabindex="0">Escanear QR del CAE
+      <input id="qrfile" type="file" accept="image/*" capture="environment" multiple hidden></label>
+    <button id="livebtn" class="ghost" style="width:100%">Escanear con la cámara en vivo</button>
+    <div id="live" hidden style="display:flex;flex-direction:column;gap:8px">
+      <video id="vid" playsinline muted autoplay style="width:100%;max-height:60vh;border-radius:8px;background:#000;object-fit:cover"></video>
+      <button id="stoplive" class="ghost small">Cerrar cámara</button>
+    </div>
+    <p class="sub" style="font-size:.82rem">Se abre la cámara del celular: apuntá al QR de la factura y sacá la foto. Podés elegir también una imagen guardada.</p>
+    <div class="row">
+      <input id="paste" type="text" placeholder="Pegá acá el link del QR (se agrega solo)" style="flex:1 1 220px" autocomplete="off">
+      <button id="addpaste" class="ghost small">Agregar</button>
+    </div>
+    <details id="manual" style="border:1px solid var(--line);border-radius:6px;padding:10px 12px">
+      <summary style="cursor:pointer;font-weight:600">Cargar a mano (si el QR no se lee)</summary>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+        <label for="m_cae">CAE (14 dígitos, figura en la factura)<input id="m_cae" type="text" inputmode="numeric" maxlength="14" autocomplete="off"></label>
+        <label for="m_imp">Importe total<input id="m_imp" type="text" inputmode="decimal" placeholder="Ej: 12500,50" autocomplete="off"></label>
+        <label for="m_fecha">Fecha de la factura<input id="m_fecha" type="date"></label>
+        <label for="m_cuit">CUIT del proveedor<input id="m_cuit" type="text" inputmode="numeric" maxlength="13" placeholder="20-12345678-6" autocomplete="off"></label>
+        <label for="m_nro">Nº de comprobante (opcional)<input id="m_nro" type="text" placeholder="0004-00001234" autocomplete="off"></label>
+        <button id="addmanual" class="ghost">Agregar comprobante</button>
+      </div>
+    </details>
+    <details id="sinqr" style="border:1px solid var(--line);border-radius:6px;padding:10px 12px">
+      <summary style="cursor:pointer;font-weight:600">La factura no tiene QR</summary>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+        <label for="q_imp">Importe total<input id="q_imp" type="text" inputmode="decimal" placeholder="Ej: 12500,50" autocomplete="off"></label>
+        <label for="q_fecha">Fecha de la factura<input id="q_fecha" type="date"></label>
+        <label for="q_nro">N° de comprobante<input id="q_nro" type="text" placeholder="Ej: 0004-00001234" autocomplete="off"></label>
+        <button id="addsinqr" class="ghost">Agregar comprobante</button>
+      </div>
+    </details>
+    <div id="s2msg"></div>
+    <div id="last"></div>
+    <ul class="inv" id="invlist"></ul>
+    <div class="tot" id="totals"></div>
+    <div class="row">
+      <button id="cont" disabled style="flex:1 1 auto">Continuar</button>
+      <button id="cancel" class="ghost">Cancelar rendición</button>
+    </div>
+  </section>
+
+  <!-- Paso 3: verificación -->
+  <section class="card" id="sv" hidden>
+    <h2>Verificá antes de guardar</h2>
+    <p class="sub">Revisá que los datos y los comprobantes estén bien. Al confirmar, la rendición se guarda.</p>
+    <dl class="pickrow" id="vsum"></dl>
+    <ul class="inv" id="vlist"></ul>
+    <div class="tot" id="vtot"></div>
+    <div id="vbal"></div>
+    <div id="vmsg"></div>
+    <div class="row">
+      <button id="vconfirm" style="flex:1 1 auto">Confirmar y guardar</button>
+      <button id="vback" class="ghost">Volver y corregir</button>
+    </div>
+  </section>
+
+  <!-- Paso 4 -->
+  <section class="card" id="s3" hidden>
+    <h2>Rendición lista</h2>
+    <div class="msg ok">La rendición quedó registrada.</div>
+    <dl class="pickrow" id="summary3"></dl>
+    <div class="row">
+      <button id="pdfbtn">Descargar PDF</button>
+      <button id="sharebtn" class="ghost" hidden>Compartir PDF</button>
+      <button id="newbtn" class="ghost">Nueva rendición</button>
+    </div>
+    <div id="s3msg"></div>
+    <div class="mailbox">
+      <h2>Enviar por mail</h2>
+      <label for="mailto">Para
+        <input id="mailto" type="email" placeholder="administracion@empresa.com" autocomplete="email"></label>
+      <div class="row">
+        <a id="mailbtn" class="btn" href="#">Abrir en mi correo</a>
+        <button id="copymail" class="ghost">Copiar asunto y texto</button>
+      </div>
+      <p class="sub" style="font-size:.82rem">Primero descargá el PDF y adjuntalo en el mail: esta página no puede adjuntar archivos por sí sola.</p>
+    </div>
+  </section>
+</main>
+<script>
+(function(){
+  var WORKERS=[
+    {id:"jperez",name:"Juan Perez",cc:"Administración",empresas:["Hidro"]},
+    {id:"mlopez",name:"Martin López",cc:"Pañol",empresas:["Construcción EF"]},
+    {id:"mmessi",name:"Mateo Messi",cc:"Terceros",empresas:["Hidro","Construcción EF"]},
+    {id:"mgonzalez",name:"Matias González",cc:"Administración",empresas:["Hidro"]},
+    {id:"lgarcia",name:"Luis Garcia",cc:"RRHH",empresas:["Construcción EF"]},
+    {id:"fferrari",name:"Florencia Ferrari",cc:"Pañol",empresas:["Hidro"]}
+  ];
+  var TRANSFERS=[
+    {id:"t-jperez-500000",worker:"jperez",amount:500000},
+    {id:"t-mlopez-600000",worker:"mlopez",amount:600000},
+    {id:"t-mmessi-700000",worker:"mmessi",amount:700000}
+  ];
+  var TIPOS={1:"Factura A",2:"Nota de Débito A",3:"Nota de Crédito A",6:"Factura B",7:"Nota de Débito B",8:"Nota de Crédito B",11:"Factura C",12:"Nota de Débito C",13:"Nota de Crédito C",51:"Factura M",19:"Factura E"};
+  var $=function(i){return document.getElementById(i)};
+  var money=function(n){return new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS"}).format(n)};
+  var db=null,myId="anon",busy=false;
+  var S={worker:null,empresa:"",transfer:null,cc:"",inv:[],done:false,fecha:""};
+
+  function today(){var d=new Date();return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear()}
+  function msg(id,cls,text){var el=$(id);el.innerHTML="";if(!text)return;var d=document.createElement("div");d.className="msg "+cls;d.textContent=text;el.appendChild(d)}
+  function step(n){["s1","s2","sv","s3"].forEach(function(s,i){$(s).hidden=(i+1!==n)});
+    Array.prototype.forEach.call($("steps").children,function(el,i){el.className=(i+1===n?"on":(i+1<n?"done":""))});window.scrollTo(0,0)}
+  function dl(el,pairs){el.innerHTML="";pairs.forEach(function(p){var a=document.createElement("dt");a.textContent=p[0];var b=document.createElement("dd");b.textContent=p[1];el.appendChild(a);el.appendChild(b)})}
+  function pending(wid){return TRANSFERS.filter(function(t){return t.worker===wid})}
+
+  /* ---------- paso 1 ---------- */
+  WORKERS.forEach(function(w){var o=document.createElement("option");o.value=w.id;o.textContent=w.name;$("worker").appendChild(o)});
+
+  async function loadTransfers(){
+    var w=WORKERS.find(function(x){return x.id===$("worker").value});
+    var emp=$("empresa"),tr=$("transfer");$("cc").value=w?w.cc:"";
+    emp.innerHTML="";tr.innerHTML="";msg("s1msg","","");
+    if(!w){emp.disabled=tr.disabled=true;emp.innerHTML='<option value="">Primero elegí tu nombre</option>';tr.innerHTML='<option value="">Primero elegí tu nombre</option>';check();return}
+    if(w.empresas.length>1){var o0=document.createElement("option");o0.value="";o0.textContent="Elegí la empresa";emp.appendChild(o0)}
+    w.empresas.forEach(function(e){var o=document.createElement("option");o.value=e;o.textContent=e;emp.appendChild(o)});
+    emp.disabled=w.empresas.length===1;
+    var list=pending(w.id),open=[];
+    for(var i=0;i<list.length;i++){
+      var done=false;
+      if(db){try{var s=await db.doc("rendiciones/"+list[i].id).get();done=s.exists&&s.data().done}catch(e){}}
+      if(!done)open.push(list[i]);
+    }
+    if(!open.length){tr.innerHTML='<option value="none">Sin transferencia pendiente</option>';tr.value="none";tr.disabled=true;
+      msg("s1msg","info","No tenés transferencias pendientes de rendir al "+today()+". Igual podés cargar tu rendición.");check();return}
+    var o1=document.createElement("option");o1.value="";o1.textContent="Elegí la transferencia";tr.appendChild(o1);
+    open.forEach(function(t){var o=document.createElement("option");o.value=t.id;o.textContent=money(t.amount)+" · pendiente al 23/11/2026";tr.appendChild(o)});
+    if(open.length===1)tr.value=open[0].id;
+    tr.disabled=false;check();
+  }
+  function check(){$("start").disabled=!($("worker").value&&$("empresa").value&&$("transfer").value&&$("cc").value.trim()&&db)}
+  $("worker").addEventListener("change",loadTransfers);
+  ["empresa","transfer"].forEach(function(i){$(i).addEventListener("change",check)});
+  $("cc").addEventListener("input",check);
+
+  $("start").addEventListener("click",function(){
+    S.worker=WORKERS.find(function(x){return x.id===$("worker").value});
+    S.empresa=$("empresa").value;
+    S.transfer=$("transfer").value==="none"?{id:"libre-"+S.worker.id+"-"+Date.now(),amount:0,none:true}:TRANSFERS.find(function(t){return t.id===$("transfer").value});
+    S.cc=$("cc").value.trim();S.inv=[];S.done=false;S.fecha=today();
+    renderS2();step(2);
+  });
+
+  /* ---------- paso 2 ---------- */
+  function renderS2(){
+    dl($("summary"),[["Nombre",S.worker.name],["Empresa",S.empresa],["Centro de costos",S.cc],["Transferencia",S.transfer.none?"Sin transferencia pendiente":money(S.transfer.amount)]]);
+    var ul=$("invlist");ul.innerHTML="";
+    S.inv.forEach(function(v,i){
+      var li=document.createElement("li");var left=document.createElement("div");
+      var t=document.createElement("div");t.className="t";t.textContent=compLabel(v);
+      var m=document.createElement("div");m.className="m";m.textContent=v.sinqr?v.fecha+" · Sin QR ni CAE":v.fecha+" · CUIT "+v.cuit+" · CAE "+v.cae;
+      left.appendChild(t);left.appendChild(m);
+      var right=document.createElement("div");right.style.textAlign="right";
+      var a=document.createElement("div");a.className="num t";a.textContent=money(v.importe);right.appendChild(a);
+      if(!S.done){var b=document.createElement("button");b.className="ghost small";b.textContent="Quitar";b.style.marginTop="4px";
+        b.addEventListener("click",function(){removeInv(i)});right.appendChild(b)}
+      li.appendChild(left);li.appendChild(right);ul.appendChild(li);
+    });
+    var total=S.inv.reduce(function(a,v){return a+v.importe},0),diff=S.transfer.amount-total;
+    var tt=$("totals");tt.innerHTML="";
+    (S.transfer.none?[["Comprobantes ("+S.inv.length+")",money(total)]]:[["Transferido",money(S.transfer.amount)],["Comprobantes ("+S.inv.length+")",money(total)],
+     [diff>=0?"Saldo sin rendir":"Rendido de más",money(Math.abs(diff))]]).forEach(function(p,i){
+      var a=document.createElement("div"),b=document.createElement("div");a.textContent=p[0];b.textContent=p[1];
+      if(i===(S.transfer.none?0:2)){a.className=b.className="big"}tt.appendChild(a);tt.appendChild(b)});
+    $("cont").disabled=!S.inv.length||busy;
+  }
+
+  function parseQR(text){
+    var m=/[?&]p=([^&\s#]+)/.exec(text);if(!m)throw new Error("Ese QR no es de un comprobante AFIP/ARCA.");
+    var b=decodeURIComponent(m[1]).replace(/-/g,"+").replace(/_/g,"/");while(b.length%4)b+="=";
+    var bin=atob(b),bytes=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+    var j=JSON.parse(new TextDecoder().decode(bytes));
+    if(!j.codAut)throw new Error("El QR no trae número de CAE.");
+    var imp=Number(j.importe)||0;if(j.moneda&&j.moneda!=="PES"&&Number(j.ctz))imp=imp*Number(j.ctz);
+    var f=String(j.fecha||"").split("-");
+    return{cae:String(j.codAut),cuit:String(j.cuit||""),pv:String(j.ptoVta||0).padStart(5,"0"),nro:String(j.nroCmp||0).padStart(8,"0"),
+      tipo:TIPOS[j.tipoCmp]||("Comprobante "+j.tipoCmp),fecha:f.length===3?f[2]+"/"+f[1]+"/"+f[0]:"",importe:Math.round(imp*100)/100};
+  }
+
+  function compLabel(v){if(v.sinqr)return v.tipo+(v.nroTxt?" "+v.nroTxt:"");return v.manual&&!v.nro?v.tipo:v.tipo+" "+v.pv+"-"+v.nro}
+  async function addFromText(text){
+    var v;try{v=parseQR(text)}catch(e){msg("s2msg","bad",e.message||"No se pudo leer el QR.");return false}
+    return claimInv(v);
+  }
+  async function claimInv(v){
+    if(S.inv.some(function(x){return x.cae===v.cae})){msg("s2msg","bad","El CAE "+v.cae+" ya está en esta rendición. No se puede cargar dos veces.");return false}
+    var ref=db.doc("cae/"+v.cae);
+    function dup(o){var who=(o&&o.ownerName)||"otro trabajador";
+      msg("s2msg","bad","El CAE "+v.cae+" ya fue cargado por "+(o&&o.owner===S.worker.id?"vos en otra rendición":who)+". No se puede usar de nuevo.")}
+    try{
+      var snap=await ref.get();
+      if(snap.exists&&snap.data()&&snap.data().owner){dup(snap.data());return false}
+      try{
+        await ref.create({owner:S.worker.id,ownerName:S.worker.name,transfer:S.transfer.id,empresa:S.empresa,importe:v.importe,
+          fecha:v.fecha,cuit:v.cuit,comprobante:compLabel(v),at:new Date().toISOString()});
+      }catch(e){
+        if(e&&e.code==="exists"){var s2=await ref.get();dup(s2.exists?s2.data():null);return false}
+        throw e}
+    }catch(e){msg("s2msg","bad","No se pudo verificar el CAE contra la base compartida. Revisá la conexión e intentá de nuevo.");return false}
+    S.inv.push(v);msg("s2msg","","");showLast(v);return true;
+  }
+
+  async function removeInv(i){
+    var v=S.inv[i];if(!v||busy)return;busy=true;
+    try{if(v.cae)await db.doc("cae/"+v.cae).delete();S.inv.splice(i,1);msg("s2msg","info",v.cae?"Comprobante quitado. Ese CAE queda libre otra vez.":"Comprobante quitado.")}
+    catch(e){msg("s2msg","bad","No se pudo quitar el comprobante. Intentá de nuevo.")}
+    busy=false;renderS2();
+  }
+
+  async function toBitmap(file){
+    if(window.createImageBitmap){try{return await createImageBitmap(file,{imageOrientation:"from-image"})}catch(e){try{return await createImageBitmap(file)}catch(e2){}}}
+    return await new Promise(function(res,rej){var u=URL.createObjectURL(file),im=new Image();
+      im.onload=function(){res(im)};im.onerror=function(){rej(new Error("No se pudo abrir la imagen."))};im.src=u});
+  }
+  function bw(w){return w.naturalWidth||w.width}
+  function bh(w){return w.naturalHeight||w.height}
+  function shrink(src,sx,sy,sw,sh,tw,th){
+    var cur=src,cx=sx,cy=sy,cw=sw,ch=sh;
+    while(cw/2>=tw&&ch/2>=th){var nw=Math.round(cw/2),nh=Math.round(ch/2),t=document.createElement("canvas");t.width=nw;t.height=nh;
+      var tc=t.getContext("2d");tc.imageSmoothingEnabled=true;tc.imageSmoothingQuality="high";tc.drawImage(cur,cx,cy,cw,ch,0,0,nw,nh);cur=t;cx=0;cy=0;cw=nw;ch=nh}
+    var c=document.createElement("canvas");c.width=tw;c.height=th;var x=c.getContext("2d",{willReadFrequently:true});
+    x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";x.drawImage(cur,cx,cy,cw,ch,0,0,tw,th);return{c:c,x:x};
+  }
+  function adaptive(g,w,h,blk,C){
+    var r=blk>>1,W1=w+1,I=new Float64Array(W1*(h+1)),y,x;
+    for(y=0;y<h;y++){var row=0;for(x=0;x<w;x++){row+=g[y*w+x];I[(y+1)*W1+x+1]=I[y*W1+x+1]+row}}
+    var out=new Uint8ClampedArray(w*h);
+    for(y=0;y<h;y++){var y0=Math.max(0,y-r),y1=Math.min(h,y+r+1);
+      for(x=0;x<w;x++){var x0=Math.max(0,x-r),x1=Math.min(w,x+r+1);
+        var m=(I[y1*W1+x1]-I[y0*W1+x1]-I[y1*W1+x0]+I[y0*W1+x0])/((x1-x0)*(y1-y0));
+        out[y*w+x]=g[y*w+x]>m-C?255:0}}
+    return out;
+  }
+  /* mode: "p" tal cual, "c" contraste, "a51:5" umbral adaptivo (bloque:offset) */
+  function scan(src,sx,sy,sw,sh,maxSide,mode){
+    var sc=Math.min(1.6,maxSide/Math.max(sw,sh)),tw=Math.max(1,Math.round(sw*sc)),th=Math.max(1,Math.round(sh*sc));
+    var o=shrink(src,sx,sy,sw,sh,tw,th),c=o.c,x=o.x,d=x.getImageData(0,0,tw,th),p=d.data,n=tw*th,i,j;
+    if(mode!=="p"){
+      var g=new Float32Array(n);for(i=0,j=0;j<n;i+=4,j++)g[j]=(p[i]*299+p[i+1]*587+p[i+2]*114)/1000;
+      var vals;
+      if(mode==="c"){var lo=255,hi=0;for(j=0;j<n;j++){if(g[j]<lo)lo=g[j];if(g[j]>hi)hi=g[j]}
+        var rg=Math.max(40,hi-lo);vals=new Uint8ClampedArray(n);
+        for(j=0;j<n;j++){var v=(g[j]-lo)*255/rg;vals[j]=v<128?Math.max(0,v-(128-v)*.35):Math.min(255,v+(v-128)*.35)}}
+      else{var pr=mode.slice(1).split(":");vals=adaptive(g,tw,th,+pr[0],+pr[1])}
+      for(i=0,j=0;j<n;i+=4,j++){p[i]=p[i+1]=p[i+2]=vals[j];p[i+3]=255}
+      x.putImageData(d,0,0);
+    }
+    var q=window.jsQR?jsQR(p,tw,th,{inversionAttempts:"dontInvert"}):null;if(q&&q.data)return q.data;
+    return zx(c);
+  }
+  function zx(c){
+    var Z=window.ZXing;if(!Z)return null;
+    try{var h=new Map();h.set(Z.DecodeHintType.TRY_HARDER,true);h.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.QR_CODE]);
+      var r=new Z.MultiFormatReader();r.setHints(h);var src=new Z.HTMLCanvasElementLuminanceSource(c);
+      try{return r.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(src))).getText()}catch(e){return r.decode(new Z.BinaryBitmap(new Z.GlobalHistogramBinarizer(src))).getText()}
+    }catch(e){return null}
+  }
+  async function decodeFile(file){
+    var bmp=await toBitmap(file),W=bw(bmp),H=bh(bmp),found=null,L=Math.max(W,H),n=0;
+    var tick=function(){n++;msg("s2msg","info","Leyendo QR… ("+n+")");return new Promise(function(r){setTimeout(r,0)})};
+    if("BarcodeDetector" in window){
+      try{var det=new BarcodeDetector({formats:["qr_code"]}),res=await det.detect(bmp);if(res.length&&res[0].rawValue)found=res[0].rawValue}catch(e){}
+    }
+    /* 1) foto completa a varios tamaños. Un QR denso de ticket se lee bien con módulos de ~4px */
+    var targets=[1000,950,1050,900,1100,850,1150,800,1250,700,1400,1600,600,1800,2200];
+    var modes=["a51:5","a51:10","a31:5","p","c"];
+    for(var k=0;k<targets.length&&!found;k++){
+      if(targets[k]>L*1.6)continue;
+      for(var m=0;m<modes.length&&!found;m++){await tick();found=scan(bmp,0,0,W,H,targets[k],modes[m])}
+    }
+    /* 2) ventanas: el QR suele estar en el centro de la foto */
+    if(!found){
+      var wins=[[.2,.2,.6],[.0,.2,.7],[.3,.2,.7],[.15,.0,.7],[.15,.3,.7],[.0,.0,.6],[.4,.0,.6],[0,.4,.6],[.4,.4,.6]];
+      for(var w=0;w<wins.length&&!found;w++){
+        var f=wins[w],sw=Math.min(W,Math.round(W*f[2])),sh=Math.min(H,Math.round(H*f[2])),sx=Math.min(Math.round(W*f[0]),W-sw),sy=Math.min(Math.round(H*f[1]),H-sh);
+        var ts=[800,1000,1200,700,1500];
+        for(var t=0;t<ts.length&&!found;t++){for(var mm=0;mm<3&&!found;mm++){await tick();found=scan(bmp,sx,sy,sw,sh,ts[t],modes[mm])}}
+      }
+    }
+    if(bmp.close)try{bmp.close()}catch(e){}
+    return found;
+  }
+  function fmtCuit(c){c=String(c).replace(/\D/g,"");return c.length===11?c.slice(0,2)+"-"+c.slice(2,10)+"-"+c.slice(10):c}
+  function cuitOk(c){c=String(c).replace(/\D/g,"");if(c.length!==11)return false;var m=[5,4,3,2,7,6,5,4,3,2],s=0;for(var i=0;i<10;i++)s+=m[i]*+c[i];var r=11-(s%11);if(r===11)r=0;if(r===10)r=9;return r===+c[10]}
+  function showLast(v){
+    var el=$("last");el.innerHTML="";var box=document.createElement("div");box.className="msg ok";
+    var h=document.createElement("div");h.style.cssText="font-weight:700;margin-bottom:6px";h.textContent=(v.sinqr?"Comprobante sin QR cargado":v.manual?"Comprobante cargado a mano":"Comprobante leído");box.appendChild(h);
+    var dlx=document.createElement("dl");dlx.className="pickrow";
+    dl(dlx,[["Proveedor (CUIT)",v.cuit?fmtCuit(v.cuit)+(cuitOk(v.cuit)?"":" · CUIT con dígito verificador inválido"):"No informado"],["Fecha",v.fecha],["Comprobante",compLabel(v)],["Importe",money(v.importe)],["CAE",v.cae||"Sin CAE"]]);
+    box.appendChild(dlx);el.appendChild(box);
+  }
+  $("qrfile").addEventListener("change",async function(e){
+    var files=Array.prototype.slice.call(e.target.files||[]);e.target.value="";if(!files.length||busy)return;
+    busy=true;$("cont").disabled=true;msg("s2msg","info","Leyendo QR…");$("last").innerHTML="";var okc=0,last=null;
+    for(var i=0;i<files.length;i++){
+      try{var t=await decodeFile(files[i]);
+        if(!t){msg("s2msg","warn","No se pudo leer el QR de la foto ("+(window.jsQR?"lector 1 ok":"lector 1 no cargó")+", "+(window.ZXing?"lector 2 ok":"lector 2 no cargó")+"). Probá con el QR ocupando buena parte de la imagen, bien enfocado y sin reflejos. Con la cámara normal del iPhone podés apuntar al QR, tocar el link, copiarlo y pegarlo abajo: se agrega solo.");continue}
+        busy=false;var ok=await addFromText(t);busy=true;if(ok)okc++;last=document.getElementById("s2msg").innerHTML;
+      }catch(err){msg("s2msg","bad",err.message||"Error al leer la imagen.")}
+    }
+    busy=false;renderS2();
+  });
+  $("scanlabel").addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();$("qrfile").click()}});
+  $("paste").addEventListener("input",function(){if(/[?&]p=/.test($("paste").value)&&!busy)$("addpaste").click()});
+  $("addpaste").addEventListener("click",async function(){
+    var t=$("paste").value.trim();if(!t||busy)return;busy=true;var ok=await addFromText(t);busy=false;if(ok)$("paste").value="";renderS2();
+  });
+
+  $("addmanual").addEventListener("click",async function(){
+    if(busy)return;
+    var cae=$("m_cae").value.replace(/\D/g,""),imp=$("m_imp").value.trim().replace(/\./g,"").replace(",","."),fe=$("m_fecha").value,cuit=$("m_cuit").value.replace(/\D/g,""),nro=$("m_nro").value.trim();
+    if(cae.length!==14){msg("s2msg","bad","El CAE tiene 14 dígitos.");return}
+    var imp2=parseFloat(imp);if(!(imp2>0)){msg("s2msg","bad","Ingresá el importe total de la factura.");return}
+    if(!fe){msg("s2msg","bad","Ingresá la fecha de la factura.");return}
+    if(cuit&&cuit.length!==11){msg("s2msg","bad","El CUIT tiene 11 dígitos.");return}
+    var f=fe.split("-"),pv="",nn="";if(nro&&nro.indexOf("-")>0){var q=nro.split("-");pv=q[0].replace(/\D/g,"").padStart(5,"0");nn=q[1].replace(/\D/g,"").padStart(8,"0")}
+    var v={cae:cae,cuit:cuit||"",pv:pv,nro:nn,tipo:"Comprobante (carga manual)",fecha:f[2]+"/"+f[1]+"/"+f[0],importe:Math.round(imp2*100)/100,manual:true};
+    busy=true;var ok=await claimInv(v);busy=false;
+    if(ok){["m_cae","m_imp","m_fecha","m_cuit","m_nro"].forEach(function(i){$(i).value=""});$("manual").open=false}
+    renderS2();
+  });
+  $("addsinqr").addEventListener("click",function(){
+    if(busy)return;
+    var imp=parseFloat($("q_imp").value.trim().replace(/\./g,"").replace(",",".")),fe=$("q_fecha").value,nro=$("q_nro").value.trim();
+    if(!(imp>0)){msg("s2msg","bad","Ingresá el importe total.");return}
+    if(!fe){msg("s2msg","bad","Ingresá la fecha de la factura.");return}
+    if(!nro){msg("s2msg","bad","Ingresá el número de comprobante.");return}
+    var f=fe.split("-");
+    var v={cae:"",cuit:"",pv:"",nro:"",nroTxt:nro,tipo:"Comprobante sin QR",fecha:f[2]+"/"+f[1]+"/"+f[0],importe:Math.round(imp*100)/100,manual:true,sinqr:true};
+    S.inv.push(v);msg("s2msg","","");showLast(v);
+    ["q_imp","q_fecha","q_nro"].forEach(function(i){$(i).value=""});$("sinqr").open=false;renderS2();
+  });
+  $("cancel").addEventListener("click",async function(){
+    if(busy)return;busy=true;
+    for(var i=0;i<S.inv.length;i++){if(!S.inv[i].cae)continue;try{await db.doc("cae/"+S.inv[i].cae).delete()}catch(e){}}
+    S.inv=[];busy=false;msg("s2msg","","");step(1);loadTransfers();
+  });
+
+  function renderVerif(){
+    var total=S.inv.reduce(function(a,v){return a+v.importe},0),diff=S.transfer.amount-total;
+    dl($("vsum"),[["Empresa",S.empresa],["Fecha de rendición",S.fecha],["Nombre",S.worker.name],["Centro de costos",S.cc],
+      ["Transferencia",S.transfer.none?"Sin transferencia pendiente":money(S.transfer.amount)]]);
+    var ul=$("vlist");ul.innerHTML="";
+    S.inv.forEach(function(v){var li=document.createElement("li"),l=document.createElement("div"),t=document.createElement("div");t.className="t";t.textContent=compLabel(v);
+      var m=document.createElement("div");m.className="m";m.textContent=v.sinqr?v.fecha+" · Sin QR ni CAE":v.fecha+" · CUIT "+(v.cuit?fmtCuit(v.cuit):"-")+" · CAE "+v.cae;
+      l.appendChild(t);l.appendChild(m);var r=document.createElement("div");r.className="num t";r.textContent=money(v.importe);li.appendChild(l);li.appendChild(r);ul.appendChild(li)});
+    var tt=$("vtot");tt.innerHTML="";
+    (S.transfer.none?[["Total rendido ("+S.inv.length+" comprobantes)",money(total)]]:[["Transferido",money(S.transfer.amount)],["Total rendido ("+S.inv.length+" comprobantes)",money(total)]]).forEach(function(p,i,arr){
+      var a=document.createElement("div"),b=document.createElement("div");a.textContent=p[0];b.textContent=p[1];if(i===arr.length-1){a.className=b.className="big"}tt.appendChild(a);tt.appendChild(b)});
+    if(S.transfer.none)msg("vbal","","");
+    else if(diff>0)msg("vbal","warn","Rendiste "+money(diff)+" menos que el monto de la transferencia. Reintegrar el dinero sobrante.");
+    else if(diff===0)msg("vbal","ok","Rendiste exactamente el monto de la transferencia.");
+    else msg("vbal","info","Rendiste "+money(-diff)+" más que el monto de la transferencia.");
+    msg("vmsg","","");
+  }
+  $("cont").addEventListener("click",function(){if(busy||!S.inv.length)return;renderVerif();step(3)});
+  $("vback").addEventListener("click",function(){if(busy)return;renderS2();step(2)});
+  $("vconfirm").addEventListener("click",async function(){
+    if(busy||!S.inv.length)return;busy=true;$("vconfirm").disabled=true;
+    var total=S.inv.reduce(function(a,v){return a+v.importe},0);
+    try{
+      await db.doc("rendiciones/"+S.transfer.id).set({done:true,worker:S.worker.id,workerName:S.worker.name,empresa:S.empresa,cc:S.cc,
+        fecha:S.fecha,transferido:S.transfer.amount,rendido:total,cantidad:S.inv.length,cae:S.inv.filter(function(v){return v.cae}).map(function(v){return v.cae}),sinCae:S.inv.filter(function(v){return !v.cae}).length,at:new Date().toISOString()});
+    }catch(e){busy=false;$("vconfirm").disabled=false;msg("vmsg","bad","No se pudo guardar la rendición. Intentá de nuevo.");return}
+    S.done=true;busy=false;$("vconfirm").disabled=false;renderS3();step(4);
+  });
+
+  /* ---------- paso 3 ---------- */
+  function mailText(){
+    var total=S.inv.reduce(function(a,v){return a+v.importe},0);
+    var subject="Rendición de fondos "+S.empresa+" - "+S.worker.name+" - "+S.fecha;
+    var lines=["Hola,","","Adjunto la rendición de fondos.","","Empresa: "+S.empresa,"Fecha de rendición: "+S.fecha,"Nombre: "+S.worker.name,
+      "Centro de costos: "+S.cc,"Transferencia: "+(S.transfer.none?"Sin transferencia pendiente":money(S.transfer.amount)),"Comprobantes: "+S.inv.length+" por "+money(total),"","Saludos,",S.worker.name];
+    return{subject:subject,body:lines.join("\n")};
+  }
+  function renderS3(){
+    var total=S.inv.reduce(function(a,v){return a+v.importe},0);
+    dl($("summary3"),[["Empresa",S.empresa],["Fecha de rendición",S.fecha],["Nombre",S.worker.name],["Centro de costos",S.cc],
+      ["Transferencia",S.transfer.none?"Sin transferencia pendiente":money(S.transfer.amount)],["Rendido ("+S.inv.length+" comp.)",money(total)]]);
+    updateMail();
+  }
+  function updateMail(){var m=mailText(),to=$("mailto").value.trim();
+    $("mailbtn").href="mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(m.subject)+"&body="+encodeURIComponent(m.body)}
+  $("mailto").addEventListener("input",updateMail);
+  $("mailbtn").addEventListener("click",function(){msg("s3msg","info","Si no se abrió tu correo, usá “Copiar asunto y texto” y pegalos en un mail nuevo con el PDF adjunto.")});
+  $("copymail").addEventListener("click",function(){
+    var m=mailText(),txt="Asunto: "+m.subject+"\n\n"+m.body;
+    var done=function(){msg("s3msg","ok","Asunto y texto copiados. Pegalos en un mail nuevo y adjuntá el PDF.")};
+    var fail=function(){var ta=document.createElement("textarea");ta.value=txt;ta.style.cssText="width:100%;height:160px";$("s3msg").innerHTML="";$("s3msg").appendChild(ta);ta.select()};
+    try{navigator.clipboard.writeText(txt).then(done,fail)}catch(e){fail()}
+  });
+
+  function buildPDF(){
+    var J=window.jspdf.jsPDF,d=new J({unit:"mm",format:"a4"}),W=210,M=16,y=0;
+    var total=S.inv.reduce(function(a,v){return a+v.importe},0);
+    d.setFillColor(10,92,143);d.rect(0,0,W,46,"F");
+    d.setTextColor(255,255,255);d.setFont("helvetica","bold");d.setFontSize(34);d.text(S.empresa.toUpperCase(),M,24);
+    d.setFontSize(13);d.setFont("helvetica","normal");d.text("RENDICIÓN DE FONDOS",M,36);
+    d.setTextColor(23,33,43);y=60;
+    var info=[["Fecha de rendición",S.fecha],["Nombre",S.worker.name],["Centro de costos",S.cc]];
+    info.forEach(function(p){d.setFont("helvetica","normal");d.setFontSize(10);d.setTextColor(95,105,118);d.text(p[0].toUpperCase(),M,y);
+      d.setFont("helvetica","bold");d.setFontSize(20);d.setTextColor(23,33,43);d.text(String(p[1]),M,y+8,{maxWidth:W-2*M});y+=20});
+    d.setDrawColor(23,33,43);d.setLineWidth(.5);d.line(M,y-4,W-M,y-4);y+=6;
+    function head(){d.setFont("helvetica","bold");d.setFontSize(9);d.setTextColor(95,105,118);
+      d.text("FECHA",M,y);d.text("COMPROBANTE",M+24,y);d.text("CUIT EMISOR",M+78,y);d.text("CAE",M+106,y);d.text("IMPORTE",W-M,y,{align:"right"});
+      d.setDrawColor(190,198,207);d.setLineWidth(.2);d.line(M,y+2,W-M,y+2);y+=8}
+    head();
+    S.inv.forEach(function(v){
+      if(y>268){d.addPage();y=20;head()}
+      d.setFont("helvetica","normal");d.setFontSize(9.5);d.setTextColor(23,33,43);
+      d.text(v.fecha,M,y);d.text(compLabel(v),M+24,y);d.text(v.cuit||"-",M+78,y);d.text(v.cae||"Sin CAE",M+106,y);
+      d.text(money(v.importe),W-M,y,{align:"right"});y+=7});
+    if(y>240){d.addPage();y=20}
+    y+=4;d.setDrawColor(23,33,43);d.setLineWidth(.5);d.line(M,y,W-M,y);y+=8;
+    var diff=S.transfer.amount-total;
+    (S.transfer.none?[["Total rendido ("+S.inv.length+" comprobantes)",money(total)]]:[["Transferencia recibida",money(S.transfer.amount)],["Total rendido ("+S.inv.length+" comprobantes)",money(total)],
+     [diff>=0?"Saldo sin rendir":"Rendido de más",money(Math.abs(diff))]]).forEach(function(p,i){
+      var last=S.transfer.none?0:2;d.setFont("helvetica",i===last?"bold":"normal");d.setFontSize(i===last?13:11);d.text(p[0],M,y);d.text(p[1],W-M,y,{align:"right"});y+=8});
+    if(y>250){d.addPage();y=30}
+    y=Math.max(y+22,262);d.setDrawColor(23,33,43);d.setLineWidth(.3);d.line(M,y,M+70,y);d.line(W-M-70,y,W-M,y);
+    d.setFont("helvetica","normal");d.setFontSize(9);d.setTextColor(95,105,118);d.text(S.worker.name,M,y+5);d.text("Aprobó",W-M-70,y+5);
+    return d.output("arraybuffer");
+  }
+  function pdfFile(){
+    var buf=buildPDF(),name="Rendicion_"+S.empresa.replace(/\s+/g,"")+"_"+S.worker.name.replace(/\s+/g,"")+"_"+S.fecha.replace(/\//g,"-")+".pdf";
+    return new File([buf],name,{type:"application/pdf"});
+  }
+  $("pdfbtn").addEventListener("click",function(){
+    try{
+      var f=pdfFile(),u=URL.createObjectURL(f),a=document.createElement("a");a.href=u;a.download=f.name;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(function(){URL.revokeObjectURL(u)},60000);
+      msg("s3msg","ok","PDF descargado. Adjuntalo al mail.");
+    }catch(e){msg("s3msg","bad","No se pudo generar el PDF. Intentá de nuevo.")}
+  });
+  try{var tf=new File(["x"],"x.pdf",{type:"application/pdf"});if(navigator.canShare&&navigator.canShare({files:[tf]}))$("sharebtn").hidden=false}catch(e){}
+  $("sharebtn").addEventListener("click",async function(){
+    try{var f=pdfFile();await navigator.share({files:[f],title:f.name,text:mailText().subject});}
+    catch(e){if(e&&e.name==="AbortError")return;msg("s3msg","bad","No se pudo abrir el menú de compartir. Usá Descargar PDF.")}
+  });
+  $("newbtn").addEventListener("click",function(){S={worker:null,empresa:"",transfer:null,cc:"",inv:[],done:false,fecha:""};
+    $("worker").value="";$("cc").value="";msg("s2msg","","");msg("s3msg","","");loadTransfers();step(1)});
+
+  /* ---------- base de datos (Firestore por REST) ---------- */
+  function enc(v){if(v===null)return{nullValue:null};if(typeof v==="string")return{stringValue:v};if(typeof v==="boolean")return{booleanValue:v};
+    if(typeof v==="number")return Number.isInteger(v)?{integerValue:String(v)}:{doubleValue:v};
+    if(Array.isArray(v))return{arrayValue:{values:v.map(enc)}};return{mapValue:{fields:encF(v)}}}
+  function encF(o){var f={};Object.keys(o).forEach(function(k){if(o[k]!==undefined)f[k]=enc(o[k])});return f}
+  function dec(x){if("stringValue"in x)return x.stringValue;if("integerValue"in x)return Number(x.integerValue);if("doubleValue"in x)return x.doubleValue;
+    if("booleanValue"in x)return x.booleanValue;if("nullValue"in x)return null;if("timestampValue"in x)return x.timestampValue;
+    if("arrayValue"in x)return(x.arrayValue.values||[]).map(dec);if("mapValue"in x)return decF(x.mapValue.fields||{});return null}
+  function decF(f){var o={};Object.keys(f).forEach(function(k){o[k]=dec(f[k])});return o}
+  function makeDb(cfg){
+    var base="https://firestore.googleapis.com/v1/projects/"+encodeURIComponent(cfg.projectId)+"/databases/(default)/documents/",key="key="+encodeURIComponent(cfg.apiKey);
+    function fail(r){var e=new Error("firestore "+r.status);e.code=r.status===409?"exists":"http";e.status=r.status;return e}
+    return{doc:function(path){return{
+      get:async function(){var r=await fetch(base+path+"?"+key);if(r.status===404)return{exists:false,data:function(){return null}};
+        if(!r.ok)throw fail(r);var j=await r.json(),d=decF(j.fields||{});return{exists:true,data:function(){return d}}},
+      create:async function(data){var p=path.split("/"),id=p.pop(),r=await fetch(base+p.join("/")+"?documentId="+encodeURIComponent(id)+"&"+key,
+        {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fields:encF(data)})});if(!r.ok)throw fail(r)},
+      set:async function(data){var r=await fetch(base+path+"?"+key,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({fields:encF(data)})});if(!r.ok)throw fail(r)},
+      delete:async function(){var r=await fetch(base+path+"?"+key,{method:"DELETE"});if(!r.ok&&r.status!==404)throw fail(r)}}}}
+  }
+
+  /* ---------- instalar como app ---------- */
+  var installEv=null;
+  function standalone(){return window.matchMedia&&matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}
+  function installUI(){
+    var el=$("install");if(standalone()){el.hidden=true;return}
+    var dismissed=false;try{dismissed=localStorage.getItem("hideInstall")==="1"}catch(e){}
+    if(dismissed){el.hidden=true;return}
+    var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    if(installEv){$("installtxt").textContent="Instalá la app en tu celular. No ocupa lugar.";$("installbtn").hidden=false;el.hidden=false}
+    else if(ios){$("installtxt").textContent="Para instalarla: tocá Compartir y elegí “Añadir a pantalla de inicio”.";$("installbtn").hidden=true;el.hidden=false}
+  }
+  window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();installEv=e;installUI()});
+  $("installbtn").addEventListener("click",async function(){if(!installEv)return;installEv.prompt();try{await installEv.userChoice}catch(e){}installEv=null;$("install").hidden=true});
+  $("installno").addEventListener("click",function(){try{localStorage.setItem("hideInstall","1")}catch(e){}$("install").hidden=true});
+  installUI();
+  if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
+
+  /* ---------- cámara en vivo ---------- */
+  var stream=null,liveOn=false;
+  function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
+  function stopLive(){liveOn=false;if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}$("live").hidden=true;$("livebtn").hidden=false}
+  async function startLive(){
+    if(liveOn)return;
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg("s2msg","warn","Este navegador no permite la cámara en vivo. Usá el botón de foto.");return}
+    try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false})}
+    catch(e){msg("s2msg","warn","No se pudo abrir la cámara ("+((e&&e.name)||"error")+"). Permitila en el navegador o usá el botón de foto.");return}
+    var v=$("vid");v.srcObject=stream;try{await v.play()}catch(e){}
+    $("live").hidden=false;$("livebtn").hidden=true;liveOn=true;msg("s2msg","info","Apuntá al QR de la factura.");liveLoop(v);
+  }
+  async function liveLoop(v){
+    var c=document.createElement("canvas"),x=c.getContext("2d",{willReadFrequently:true}),det=null,n=0,last="",lastT=0;
+    if("BarcodeDetector"in window){try{det=new BarcodeDetector({formats:["qr_code"]})}catch(e){}}
+    while(liveOn){
+      await sleep(120);if(v.readyState<2||busy||!v.videoWidth)continue;n++;
+      var text=null;
+      if(det){try{var r=await det.detect(v);if(r.length)text=r[0].rawValue}catch(e){}}
+      if(!text){c.width=v.videoWidth;c.height=v.videoHeight;x.drawImage(v,0,0,c.width,c.height);
+        if(window.jsQR){var d=x.getImageData(0,0,c.width,c.height),q=jsQR(d.data,d.width,d.height,{inversionAttempts:"dontInvert"});if(q&&q.data)text=q.data}
+        if(!text&&n%3===0)text=zx(c)}
+      if(text&&(text!==last||Date.now()-lastT>5000)){
+        last=text;lastT=Date.now();busy=true;var ok=await addFromText(text);busy=false;renderS2();
+        if(ok&&navigator.vibrate)try{navigator.vibrate(80)}catch(e){}}
+    }
+  }
+  $("livebtn").addEventListener("click",startLive);
+  $("stoplive").addEventListener("click",stopLive);
+  $("cancel").addEventListener("click",stopLive);
+  $("cont").addEventListener("click",stopLive);
+
+  /* ---------- arranque ---------- */
+  (function(){
+    try{var id=localStorage.getItem("uid");if(!id){id="u"+Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem("uid",id)}myId=id}catch(e){}
+    var cfg=(window.APP_CONFIG&&window.APP_CONFIG.firebase)||{};
+    if(cfg.apiKey&&cfg.projectId){db=makeDb(cfg)}
+    else msg("dbmsg","bad","Falta configurar la base de datos (config.js). Sin ella la carga está bloqueada.");
+    check();
+  })();
+})();
+</script>
+</body>
+</html>
