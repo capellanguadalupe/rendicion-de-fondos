@@ -198,7 +198,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <p class="sub" style="font-size:.82rem">Primero descargá el PDF y adjuntalo en el mail: esta página no puede adjuntar archivos por sí sola.</p>
     </div>
   </section>
-  <p class="sub" style="text-align:center;font-size:.75rem">Versión 3 · tipo de gasto</p>
+  <p class="sub" style="text-align:center;font-size:.75rem">Versión 4 · lector de QR reforzado</p>
 </main>
 <script>
 (function(){
@@ -304,7 +304,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     var imp=Number(j.importe)||0;if(j.moneda&&j.moneda!=="PES"&&Number(j.ctz))imp=imp*Number(j.ctz);
     var f=String(j.fecha||"").split("-");
     return{cae:String(j.codAut),cuit:String(j.cuit||""),pv:String(j.ptoVta||0).padStart(5,"0"),nro:String(j.nroCmp||0).padStart(8,"0"),
-      tipo:TIPOS[j.tipoCmp]||("Comprobante "+j.tipoCmp),fecha:f.length===3?f[2]+"/"+f[1]+"/"+f[0]:"",importe:Math.round(imp*100)/100};
+      tipo:TIPOS[j.tipoCmp]||("Comprobante "+j.tipoCmp),fecha:/^\d{4}-\d{2}-\d{2}$/.test(String(j.fecha||""))?f[2]+"/"+f[1]+"/"+f[0]:"Sin fecha en el QR",importe:Math.round(imp*100)/100};
   }
 
   GASTOS.forEach(function(g){var o=document.createElement("option");o.value=g;o.textContent=g;$("gasto").appendChild(o)});
@@ -390,12 +390,36 @@ button:disabled{opacity:.45;cursor:not-allowed}
       try{return r.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(src))).getText()}catch(e){return r.decode(new Z.BinaryBitmap(new Z.GlobalHistogramBinarizer(src))).getText()}
     }catch(e){return null}
   }
+  /* Lector 3: zxing-cpp compilado a WebAssembly. Es el más potente para QR densos (facturas de ARCA impresas). */
+  var wasmP=null,wasmState="sin intentar";
+  function loadWasm(){
+    if(wasmP)return wasmP;
+    wasmP=new Promise(function(res){
+      var s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/zxing-wasm@2/dist/iife/reader/index.js";
+      s.onload=function(){var Z=window.ZXingWASM,rb=Z&&(Z.readBarcodes||(Z.reader&&Z.reader.readBarcodes));wasmState=rb?"ok":"cargó pero sin función";res(rb||null)};
+      s.onerror=function(){wasmState="no cargó";res(null)};document.head.appendChild(s);
+    });
+    return wasmP;
+  }
+  async function wasmRead(imgData){
+    var rb=await loadWasm();if(!rb)return null;
+    try{var r=await rb(imgData,{formats:["QRCode"],tryHarder:true,tryRotate:true,tryInvert:true});
+      for(var i=0;i<(r||[]).length;i++){if(r[i].text&&r[i].isValid!==false)return r[i].text}}catch(e){wasmState="error al leer: "+((e&&e.message)||e)}
+    return null;
+  }
+  function bmpData(bmp,maxSide){
+    var W=bw(bmp),H=bh(bmp),sc=Math.min(1,maxSide/Math.max(W,H)),c=document.createElement("canvas");c.width=Math.max(1,Math.round(W*sc));c.height=Math.max(1,Math.round(H*sc));
+    var x=c.getContext("2d",{willReadFrequently:true});x.drawImage(bmp,0,0,c.width,c.height);return x.getImageData(0,0,c.width,c.height);
+  }
+  setTimeout(loadWasm,2500);
   async function decodeFile(file){
     var bmp=await toBitmap(file),W=bw(bmp),H=bh(bmp),found=null,L=Math.max(W,H),n=0;
     var tick=function(){n++;msg("s2msg","info","Leyendo QR… ("+n+")");return new Promise(function(r){setTimeout(r,0)})};
     if("BarcodeDetector" in window){
       try{var det=new BarcodeDetector({formats:["qr_code"]}),res=await det.detect(bmp);if(res.length&&res[0].rawValue)found=res[0].rawValue}catch(e){}
     }
+    if(!found){msg("s2msg","info","Leyendo QR…");var sizes3=[2400,1600,1000];
+      for(var z=0;z<sizes3.length&&!found;z++){if(sizes3[z]>L*1.05&&z>0)continue;found=await wasmRead(bmpData(bmp,sizes3[z]))}}
     /* 1) foto completa a varios tamaños. Un QR denso de ticket se lee bien con módulos de ~4px */
     var targets=[1000,950,1050,900,1100,850,1150,800,1250,700,1400,1600,600,1800,2200];
     var modes=["a51:5","a51:10","a31:5","p","c"];
@@ -429,7 +453,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     busy=true;$("cont").disabled=true;msg("s2msg","info","Leyendo QR…");$("last").innerHTML="";var okc=0,last=null;
     for(var i=0;i<files.length;i++){
       try{var t=await decodeFile(files[i]);
-        if(!t){msg("s2msg","warn","No se pudo leer el QR de la foto ("+(window.jsQR?"lector 1 ok":"lector 1 no cargó")+", "+(window.ZXing?"lector 2 ok":"lector 2 no cargó")+"). Probá con el QR ocupando buena parte de la imagen, bien enfocado y sin reflejos. Con la cámara normal del iPhone podés apuntar al QR, tocar el link, copiarlo y pegarlo abajo: se agrega solo.");continue}
+        if(!t){msg("s2msg","warn","No se pudo leer el QR de la foto ("+(window.jsQR?"lector 1 ok":"lector 1 no cargó")+", "+(window.ZXing?"lector 2 ok":"lector 2 no cargó")+", lector 3: "+wasmState+"). Probá con el QR ocupando buena parte de la imagen, bien enfocado y sin reflejos. Con la cámara normal del iPhone podés apuntar al QR, tocar el link, copiarlo y pegarlo abajo: se agrega solo.");continue}
         busy=false;var ok=await addFromText(t);busy=true;if(ok)okc++;last=document.getElementById("s2msg").innerHTML;
       }catch(err){msg("s2msg","bad",err.message||"Error al leer la imagen.")}
     }
@@ -646,7 +670,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
       if(det){try{var r=await det.detect(v);if(r.length)text=r[0].rawValue}catch(e){}}
       if(!text){c.width=v.videoWidth;c.height=v.videoHeight;x.drawImage(v,0,0,c.width,c.height);
         if(window.jsQR){var d=x.getImageData(0,0,c.width,c.height),q=jsQR(d.data,d.width,d.height,{inversionAttempts:"dontInvert"});if(q&&q.data)text=q.data}
-        if(!text&&n%3===0)text=zx(c)}
+        if(!text&&n%3===0)text=zx(c);
+        if(!text&&n%2===0)text=await wasmRead(x.getImageData(0,0,c.width,c.height))}
       if(text&&(text!==last||Date.now()-lastT>5000)){
         last=text;lastT=Date.now();busy=true;var ok=await addFromText(text);busy=false;renderS2();
         if(ok&&navigator.vibrate)try{navigator.vibrate(80)}catch(e){}}
