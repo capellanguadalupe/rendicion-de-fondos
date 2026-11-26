@@ -205,7 +205,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <p class="sub" style="font-size:.82rem">Primero descargá el PDF y adjuntalo en el mail: esta página no puede adjuntar archivos por sí sola.</p>
     </div>
   </section>
-  <p class="sub" style="text-align:center;font-size:.75rem">Versión 6 · escanear comprobante</p>
+  <p class="sub" style="text-align:center;font-size:.75rem">Versión 7 · escanear comprobante</p>
 </main>
 <script>
 (function(){
@@ -461,7 +461,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     /* Tipo y letra */
     var all=lines.join("\n");
     if(/NOTA\s+DE\s+CR[EÉ]DITO/i.test(all))o.tipo="Nota de crédito";else if(/NOTA\s+DE\s+D[EÉ]BITO/i.test(all))o.tipo="Nota de débito";
-    m=/(?:FACTURA|CR[EÉ]DITO|D[EÉ]BITO)\s*[^A-Za-z0-9\n]{0,3}\s*([ABCEM])\b/i.exec(all);if(m)o.letra=m[1].toUpperCase();
+    m=/(?:FACTURA|CR[EÉ]DITO|D[EÉ]BITO)\s*(?:\(\s*\d+\s*\))?\s*[^A-Za-z0-9\n]{0,3}\s*([ABCEM])\b/i.exec(all);if(m)o.letra=m[1].toUpperCase();
     if(!o.letra){m=/c[oó]d\.?\s*0*(\d{1,3})/i.exec(all);
       if(m){var L={1:"A",2:"A",3:"A",6:"B",7:"B",8:"B",11:"C",12:"C",13:"C",19:"E",51:"M",81:"A",82:"B",83:"B"}[parseInt(m[1],10)];if(L)o.letra=L}}
     /* Punto de venta y número */
@@ -474,8 +474,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
     function okDate(d,mo,y){d=+d;mo=+mo;y=+y;return d>=1&&d<=31&&mo>=1&&mo<=12&&y>=2000&&y<=2100}
     function dateIn(l){var mm=/(\d{1,2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{4})/.exec(l);
       return mm&&okDate(mm[1],mm[2],mm[3])?[mm[3],mm[2].padStart(2,"0"),mm[1].padStart(2,"0")].join("-"):""}
-    for(i=0;i<lines.length&&!o.fecha;i++){if(/fecha/i.test(lines[i])&&!/vto|vencim|proceso/i.test(lines[i]))o.fecha=dateIn(lines[i])}
-    for(i=0;i<lines.length&&!o.fecha;i++){if(!/inicio|vto|vencim|proceso/i.test(lines[i]))o.fecha=dateIn(lines[i])}
+    for(i=0;i<lines.length&&!o.fecha;i++){if(/fecha/i.test(lines[i])&&!/vto|vencim|proceso|inicio|activ/i.test(lines[i]))o.fecha=dateIn(lines[i])}
+    for(i=0;i<lines.length&&!o.fecha;i++){if(!/inicio|activ|vto|vencim|proceso/i.test(lines[i]))o.fecha=dateIn(lines[i])}
     /* Total: el valor de la línea TOTAL, validado con los demás importes del ticket */
     var toks=[];lines.forEach(function(l){moneyTokens(l).forEach(function(t){toks.push(t.val)})});
     var cv=[];
