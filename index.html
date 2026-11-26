@@ -205,7 +205,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <p class="sub" style="font-size:.82rem">Primero descargá el PDF y adjuntalo en el mail: esta página no puede adjuntar archivos por sí sola.</p>
     </div>
   </section>
-  <p class="sub" style="text-align:center;font-size:.75rem">Versión 5 · escanear comprobante</p>
+  <p class="sub" style="text-align:center;font-size:.75rem">Versión 6 · escanear comprobante</p>
 </main>
 <script>
 (function(){
@@ -553,6 +553,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     busy=true;$("cont").disabled=true;msg("s2msg","info","Leyendo QR…");$("last").innerHTML="";var okc=0,last=null;
     for(var i=0;i<files.length;i++){
       try{var t=await decodeFile(files[i]);
+        if(t){try{parseQR(t)}catch(pe){t=null}}
         if(!t){
           var txt="";try{txt=await ocrFile(files[i])}catch(oe){msg("s2msg","bad",oe.message||"No se pudo leer el comprobante.");continue}
           var o=parseTicket(txt);
