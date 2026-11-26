@@ -5,6 +5,10 @@ service cloud.firestore {
       allow read, create, delete: if id.matches('[0-9]{14}');
       allow update: if false;
     }
+    match /cmp/{id} {
+      allow read, create, delete: if id.matches('[0-9]{11}-[0-9]{5}-[0-9]{8}');
+      allow update: if false;
+    }
     match /rendiciones/{id} {
       allow read, create, update: if true;
     }

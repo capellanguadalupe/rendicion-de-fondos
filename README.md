@@ -8,3 +8,7 @@ App web instalable para cargar rendiciones de fondos: el trabajador elige su nom
 - `manifest.webmanifest`, `sw.js` e íconos: permiten instalarla en el celular.
 
 Para cambiar trabajadores, empresas, centros de costos o transferencias, editar las listas `WORKERS` y `TRANSFERS` al comienzo del script de `index.html`.
+
+## Escanear comprobante (v5)
+- La foto se lee primero como QR de ARCA; si no hay QR, se leen los datos con OCR (Tesseract.js) y el trabajador los confirma.
+- No se puede repetir el mismo CUIT + punto de venta + número (colección `cmp` en Firestore). Hay que publicar la regla nueva de `firestore.rules`.
