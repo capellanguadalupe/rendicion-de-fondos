@@ -93,20 +93,22 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <h1>Rendición de fondos</h1>
     <p class="sub">Cargá los comprobantes con el QR del CAE y generá el PDF para enviar.</p>
   </header>
-  <div class="steps" id="steps"><span class="on">1 · Datos</span><span>2 · Comprobantes</span><span>3 · Verificación</span><span>4 · PDF y mail</span></div>
+  <div class="steps" id="steps"><span class="on">1 · Inicio</span><span>2 · Comprobantes</span><span>3 · Verificación</span><span>4 · PDF y mail</span></div>
   <div id="dbmsg"></div>
 
   <!-- Paso 1 -->
   <section class="card" id="s1">
     <h2>Datos de la rendición</h2>
-    <label for="worker">Nombre
-      <select id="worker"><option value="">Elegí tu nombre</option></select></label>
     <label for="empresa">Empresa
-      <select id="empresa" disabled><option value="">Primero elegí tu nombre</option></select></label>
-    <label for="transfer">Transferencia pendiente de rendir
-      <select id="transfer" disabled><option value="">Primero elegí tu nombre</option></select></label>
+      <select id="empresa"></select></label>
+    <label for="worker">Nombre del solicitante
+      <select id="worker"><option value="">Elegí el solicitante</option></select></label>
     <label for="cc">Centro de costos
-      <input id="cc" type="text" placeholder="Se completa al elegir tu nombre" readonly autocomplete="off"></label>
+      <input id="cc" type="text" placeholder="Se completa al elegir el solicitante" readonly autocomplete="off"></label>
+    <label for="tipo">Tipo de rendición
+      <select id="tipo"><option value="">Elegí el tipo de rendición</option></select></label>
+    <label for="transfer" id="transferwrap" hidden>Transferencia pendiente de rendir
+      <select id="transfer"><option value="">Primero elegí el solicitante</option></select></label>
     <div id="s1msg"></div>
     <button id="start" disabled>Comenzar a escanear</button>
   </section>
@@ -200,7 +202,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <p class="sub" style="font-size:.82rem">Primero descargá el PDF y adjuntalo en el mail: esta página no puede adjuntar archivos por sí sola.</p>
     </div>
   </section>
-  <p class="sub" style="text-align:center;font-size:.75rem">Versión 9 · escanear comprobante</p>
+  <p class="sub" style="text-align:center;font-size:.75rem">Versión 10 · escanear comprobante</p>
 </main>
 <script>
 (function(){
@@ -222,7 +224,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
   var $=function(i){return document.getElementById(i)};
   var money=function(n){return new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS"}).format(n)};
   var db=null,myId="anon",busy=false;
-  var S={worker:null,empresa:"",transfer:null,cc:"",inv:[],done:false,fecha:""};
+  var S={worker:null,empresa:"",tipo:"",transfer:null,cc:"",inv:[],done:false,fecha:""};
 
   function today(){var d=new Date();return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear()}
   function msg(id,cls,text){var el=$(id);el.innerHTML="";if(!text)return;var d=document.createElement("div");d.className="msg "+cls;d.textContent=text;el.appendChild(d)}
@@ -234,14 +236,16 @@ button:disabled{opacity:.45;cursor:not-allowed}
   /* ---------- paso 1 ---------- */
   WORKERS.forEach(function(w){var o=document.createElement("option");o.value=w.id;o.textContent=w.name;$("worker").appendChild(o)});
 
+  var EMPRESAS=["Hidro","Construcción EF"],TIPOS_REND=["Con anticipo","A rendir","Tarjeta de Crédito"];
+  EMPRESAS.forEach(function(e){var o=document.createElement("option");o.value=e;o.textContent=e;$("empresa").appendChild(o)});$("empresa").value="Hidro";
+  TIPOS_REND.forEach(function(e){var o=document.createElement("option");o.value=e;o.textContent=e;$("tipo").appendChild(o)});
+
   async function loadTransfers(){
     var w=WORKERS.find(function(x){return x.id===$("worker").value});
-    var emp=$("empresa"),tr=$("transfer");$("cc").value=w?w.cc:"";
-    emp.innerHTML="";tr.innerHTML="";msg("s1msg","","");
-    if(!w){emp.disabled=tr.disabled=true;emp.innerHTML='<option value="">Primero elegí tu nombre</option>';tr.innerHTML='<option value="">Primero elegí tu nombre</option>';check();return}
-    if(w.empresas.length>1){var o0=document.createElement("option");o0.value="";o0.textContent="Elegí la empresa";emp.appendChild(o0)}
-    w.empresas.forEach(function(e){var o=document.createElement("option");o.value=e;o.textContent=e;emp.appendChild(o)});
-    emp.disabled=w.empresas.length===1;
+    var tr=$("transfer"),conAnt=$("tipo").value==="Con anticipo";$("cc").value=w?w.cc:"";
+    tr.innerHTML="";msg("s1msg","","");$("transferwrap").hidden=!conAnt;
+    if(!conAnt){tr.innerHTML='<option value="none">Sin transferencia</option>';tr.value="none";check();return}
+    if(!w){tr.innerHTML='<option value="">Primero elegí el solicitante</option>';tr.disabled=true;check();return}
     var list=pending(w.id),open=[];
     for(var i=0;i<list.length;i++){
       var done=false;
@@ -249,21 +253,22 @@ button:disabled{opacity:.45;cursor:not-allowed}
       if(!done)open.push(list[i]);
     }
     if(!open.length){tr.innerHTML='<option value="none">Sin transferencia pendiente</option>';tr.value="none";tr.disabled=true;
-      msg("s1msg","info","No tenés transferencias pendientes de rendir al "+today()+". Igual podés cargar tu rendición.");check();return}
+      msg("s1msg","info","No hay transferencias pendientes de rendir para este solicitante al "+today()+". Igual podés cargar la rendición.");check();return}
     var o1=document.createElement("option");o1.value="";o1.textContent="Elegí la transferencia";tr.appendChild(o1);
     open.forEach(function(t){var o=document.createElement("option");o.value=t.id;o.textContent=money(t.amount)+" · pendiente al 23/11/2026";tr.appendChild(o)});
     if(open.length===1)tr.value=open[0].id;
     tr.disabled=false;check();
   }
-  function check(){$("start").disabled=!($("worker").value&&$("empresa").value&&$("transfer").value&&$("cc").value.trim()&&db)}
+  function check(){$("start").disabled=!($("worker").value&&$("empresa").value&&$("tipo").value&&$("transfer").value&&$("cc").value.trim()&&db)}
   $("worker").addEventListener("change",loadTransfers);
+  $("tipo").addEventListener("change",loadTransfers);
   ["empresa","transfer"].forEach(function(i){$(i).addEventListener("change",check)});
   $("cc").addEventListener("input",check);
 
   $("start").addEventListener("click",function(){
     $("gasto").value="";
     S.worker=WORKERS.find(function(x){return x.id===$("worker").value});
-    S.empresa=$("empresa").value;
+    S.empresa=$("empresa").value;S.tipo=$("tipo").value;
     S.transfer=$("transfer").value==="none"?{id:"libre-"+S.worker.id+"-"+Date.now(),amount:0,none:true}:TRANSFERS.find(function(t){return t.id===$("transfer").value});
     S.cc=$("cc").value.trim();S.inv=[];S.done=false;S.fecha=today();
     renderS2();step(2);
@@ -271,7 +276,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 
   /* ---------- paso 2 ---------- */
   function renderS2(){
-    dl($("summary"),[["Nombre",S.worker.name],["Empresa",S.empresa],["Centro de costos",S.cc],["Transferencia",S.transfer.none?"Sin transferencia pendiente":money(S.transfer.amount)]]);
+    dl($("summary"),[["Nombre",S.worker.name],["Empresa",S.empresa],["Centro de costos",S.cc],["Tipo de rendición",S.tipo],["Transferencia",S.transfer.none?"Sin transferencia":money(S.transfer.amount)]]);
     var ul=$("invlist");ul.innerHTML="";
     S.inv.forEach(function(v,i){
       var li=document.createElement("li");var left=document.createElement("div");
@@ -623,8 +628,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
 
   function renderVerif(){
     var total=S.inv.reduce(function(a,v){return a+v.importe},0),diff=S.transfer.amount-total;
-    dl($("vsum"),[["Empresa",S.empresa],["Fecha de rendición",S.fecha],["Nombre",S.worker.name],["Centro de costos",S.cc],
-      ["Transferencia",S.transfer.none?"Sin transferencia pendiente":money(S.transfer.amount)]]);
+    dl($("vsum"),[["Empresa",S.empresa],["Fecha de rendición",S.fecha],["Nombre",S.worker.name],["Centro de costos",S.cc],["Tipo de rendición",S.tipo],
+      ["Transferencia",S.transfer.none?"Sin transferencia":money(S.transfer.amount)]]);
     var ul=$("vlist");ul.innerHTML="";
     S.inv.forEach(function(v){var li=document.createElement("li"),l=document.createElement("div"),t=document.createElement("div");t.className="t";t.textContent=compLabel(v);
       var m=document.createElement("div");m.className="m";m.textContent=(v.gasto||"Sin tipo")+" · "+(v.razon?v.razon+" · ":"")+(v.cae?v.fecha+" · CUIT "+(v.cuit?fmtCuit(v.cuit):"-")+" · CAE "+v.cae:v.fecha+" · CUIT "+(v.cuit?fmtCuit(v.cuit):"-")+" · Sin CAE");
@@ -645,7 +650,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     if(busy||!S.inv.length)return;busy=true;$("vconfirm").disabled=true;
     var total=S.inv.reduce(function(a,v){return a+v.importe},0);
     try{
-      await db.doc("rendiciones/"+S.transfer.id).set({done:true,worker:S.worker.id,workerName:S.worker.name,empresa:S.empresa,cc:S.cc,
+      await db.doc("rendiciones/"+S.transfer.id).set({done:true,worker:S.worker.id,workerName:S.worker.name,empresa:S.empresa,cc:S.cc,tipoRendicion:S.tipo,
         fecha:S.fecha,transferido:S.transfer.amount,rendido:total,cantidad:S.inv.length,cae:S.inv.filter(function(v){return v.cae}).map(function(v){return v.cae}),sinCae:S.inv.filter(function(v){return !v.cae}).length,comprobantes:S.inv.map(function(v){return{cae:v.cae||"",gasto:v.gasto||"",importe:v.importe,fecha:v.fecha,comprobante:compLabel(v),razon:v.razon||"",cuit:v.cuit||""}}),at:new Date().toISOString()});
     }catch(e){busy=false;$("vconfirm").disabled=false;msg("vmsg","bad","No se pudo guardar la rendición. Intentá de nuevo.");return}
     S.done=true;busy=false;$("vconfirm").disabled=false;renderS3();step(4);
@@ -656,13 +661,13 @@ button:disabled{opacity:.45;cursor:not-allowed}
     var total=S.inv.reduce(function(a,v){return a+v.importe},0);
     var subject="Rendición de fondos "+S.empresa+" - "+S.worker.name+" - "+S.fecha;
     var lines=["Hola,","","Adjunto la rendición de fondos.","","Empresa: "+S.empresa,"Fecha de rendición: "+S.fecha,"Nombre: "+S.worker.name,
-      "Centro de costos: "+S.cc,"Transferencia: "+(S.transfer.none?"Sin transferencia pendiente":money(S.transfer.amount)),"Comprobantes: "+S.inv.length+" por "+money(total),"","Saludos,",S.worker.name];
+      "Centro de costos: "+S.cc,"Tipo de rendición: "+S.tipo,"Transferencia: "+(S.transfer.none?"Sin transferencia":money(S.transfer.amount)),"Comprobantes: "+S.inv.length+" por "+money(total),"","Saludos,",S.worker.name];
     return{subject:subject,body:lines.join("\n")};
   }
   function renderS3(){
     var total=S.inv.reduce(function(a,v){return a+v.importe},0);
-    dl($("summary3"),[["Empresa",S.empresa],["Fecha de rendición",S.fecha],["Nombre",S.worker.name],["Centro de costos",S.cc],
-      ["Transferencia",S.transfer.none?"Sin transferencia pendiente":money(S.transfer.amount)],["Rendido ("+S.inv.length+" comp.)",money(total)]]);
+    dl($("summary3"),[["Empresa",S.empresa],["Fecha de rendición",S.fecha],["Nombre",S.worker.name],["Centro de costos",S.cc],["Tipo de rendición",S.tipo],
+      ["Transferencia",S.transfer.none?"Sin transferencia":money(S.transfer.amount)],["Rendido ("+S.inv.length+" comp.)",money(total)]]);
     updateMail();
   }
   function updateMail(){var m=mailText(),to=$("mailto").value.trim();
@@ -683,7 +688,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     d.setTextColor(255,255,255);d.setFont("helvetica","bold");d.setFontSize(34);d.text(S.empresa.toUpperCase(),M,24);
     d.setFontSize(13);d.setFont("helvetica","normal");d.text("RENDICIÓN DE FONDOS",M,36);
     d.setTextColor(23,33,43);y=60;
-    var info=[["Fecha de rendición",S.fecha],["Nombre",S.worker.name],["Centro de costos",S.cc]];
+    var info=[["Fecha de rendición",S.fecha],["Nombre",S.worker.name],["Centro de costos",S.cc],["Tipo de rendición",S.tipo]];
     info.forEach(function(p){d.setFont("helvetica","normal");d.setFontSize(10);d.setTextColor(95,105,118);d.text(p[0].toUpperCase(),M,y);
       d.setFont("helvetica","bold");d.setFontSize(20);d.setTextColor(23,33,43);d.text(String(p[1]),M,y+8,{maxWidth:W-2*M});y+=20});
     d.setDrawColor(23,33,43);d.setLineWidth(.5);d.line(M,y-4,W-M,y-4);y+=6;
@@ -729,8 +734,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
     try{var f=pdfFile();await navigator.share({files:[f],title:f.name,text:mailText().subject});}
     catch(e){if(e&&e.name==="AbortError")return;msg("s3msg","bad","No se pudo abrir el menú de compartir. Usá Descargar PDF.")}
   });
-  $("newbtn").addEventListener("click",function(){$("gasto").value="";S={worker:null,empresa:"",transfer:null,cc:"",inv:[],done:false,fecha:""};
-    $("worker").value="";$("cc").value="";msg("s2msg","","");msg("s3msg","","");loadTransfers();step(1)});
+  $("newbtn").addEventListener("click",function(){$("gasto").value="";S={worker:null,empresa:"",tipo:"",transfer:null,cc:"",inv:[],done:false,fecha:""};
+    $("worker").value="";$("cc").value="";$("tipo").value="";$("empresa").value="Hidro";msg("s2msg","","");msg("s3msg","","");loadTransfers();step(1)});
 
   /* ---------- base de datos (Firestore por REST) ---------- */
   function enc(v){if(v===null)return{nullValue:null};if(typeof v==="string")return{stringValue:v};if(typeof v==="boolean")return{booleanValue:v};
