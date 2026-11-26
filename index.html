@@ -120,27 +120,11 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <label for="gasto">Tipo de gasto del comprobante
       <select id="gasto"><option value="">Elegí el tipo de gasto</option></select></label>
     <p class="sub" style="font-size:.82rem;margin-top:-6px">Elegilo antes de cargar cada comprobante. Se aplica a los que cargues a partir de ahora, y después lo podés cambiar en la lista.</p>
-    <button id="livebtn" class="ghost" style="width:100%">Escanear comprobante con la cámara en vivo</button>
-    <div id="live" hidden style="display:flex;flex-direction:column;gap:8px">
-      <video id="vid" playsinline muted autoplay style="width:100%;max-height:60vh;border-radius:8px;background:#000;object-fit:cover"></video>
-      <button id="stoplive" class="ghost small">Cerrar cámara</button>
-    </div>
     <p class="sub" style="font-size:.82rem">Sacale una foto <b>clara y sin sombras</b> al comprobante entero, bien enfocado y sin reflejos. Si tiene QR se lee solo; si no, la app lee los datos y vos los confirmás. Podés elegir también una imagen guardada.</p>
     <div class="row">
       <input id="paste" type="text" placeholder="Pegá acá el link del QR (se agrega solo)" style="flex:1 1 220px" autocomplete="off">
       <button id="addpaste" class="ghost small">Agregar</button>
     </div>
-    <details id="manual" style="border:1px solid var(--line);border-radius:6px;padding:10px 12px">
-      <summary style="cursor:pointer;font-weight:600">Cargar a mano (si el QR no se lee)</summary>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
-        <label for="m_cae">CAE (14 dígitos, figura en la factura)<input id="m_cae" type="text" inputmode="numeric" maxlength="14" autocomplete="off"></label>
-        <label for="m_imp">Importe total<input id="m_imp" type="text" inputmode="decimal" placeholder="Ej: 12500,50" autocomplete="off"></label>
-        <label for="m_fecha">Fecha de la factura<input id="m_fecha" type="date"></label>
-        <label for="m_cuit">CUIT del proveedor<input id="m_cuit" type="text" inputmode="numeric" maxlength="13" placeholder="20-12345678-6" autocomplete="off"></label>
-        <label for="m_nro">Nº de comprobante (opcional)<input id="m_nro" type="text" placeholder="0004-00001234" autocomplete="off"></label>
-        <button id="addmanual" class="ghost">Agregar comprobante</button>
-      </div>
-    </details>
     <details id="sinqr" style="border:1px solid var(--line);border-radius:6px;padding:10px 12px">
       <summary style="cursor:pointer;font-weight:600">Datos del comprobante (sin QR o a confirmar)</summary>
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
@@ -165,6 +149,17 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <button id="cont" disabled style="flex:1 1 auto">Continuar</button>
       <button id="cancel" class="ghost">Cancelar rendición</button>
     </div>
+    <details id="manual" style="border:1px solid var(--line);border-radius:6px;padding:10px 12px">
+      <summary style="cursor:pointer;font-weight:600">Cargar CAE a mano</summary>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+        <label for="m_cae">CAE (14 dígitos, figura en la factura)<input id="m_cae" type="text" inputmode="numeric" maxlength="14" autocomplete="off"></label>
+        <label for="m_imp">Importe total<input id="m_imp" type="text" inputmode="decimal" placeholder="Ej: 12500,50" autocomplete="off"></label>
+        <label for="m_fecha">Fecha de la factura<input id="m_fecha" type="date"></label>
+        <label for="m_cuit">CUIT del proveedor<input id="m_cuit" type="text" inputmode="numeric" maxlength="13" placeholder="20-12345678-6" autocomplete="off"></label>
+        <label for="m_nro">Nº de comprobante (opcional)<input id="m_nro" type="text" placeholder="0004-00001234" autocomplete="off"></label>
+        <button id="addmanual" class="ghost">Agregar comprobante</button>
+      </div>
+    </details>
   </section>
 
   <!-- Paso 3: verificación -->
@@ -205,7 +200,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <p class="sub" style="font-size:.82rem">Primero descargá el PDF y adjuntalo en el mail: esta página no puede adjuntar archivos por sí sola.</p>
     </div>
   </section>
-  <p class="sub" style="text-align:center;font-size:.75rem">Versión 7 · escanear comprobante</p>
+  <p class="sub" style="text-align:center;font-size:.75rem">Versión 8 · escanear comprobante</p>
 </main>
 <script>
 (function(){
@@ -774,40 +769,6 @@ button:disabled{opacity:.45;cursor:not-allowed}
   $("installno").addEventListener("click",function(){try{localStorage.setItem("hideInstall","1")}catch(e){}$("install").hidden=true});
   installUI();
   if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
-
-  /* ---------- cámara en vivo ---------- */
-  var stream=null,liveOn=false;
-  function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
-  function stopLive(){liveOn=false;if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}$("live").hidden=true;$("livebtn").hidden=false}
-  async function startLive(){
-    if(needGasto())return;
-    if(liveOn)return;
-    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg("s2msg","warn","Este navegador no permite la cámara en vivo. Usá el botón de foto.");return}
-    try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false})}
-    catch(e){msg("s2msg","warn","No se pudo abrir la cámara ("+((e&&e.name)||"error")+"). Permitila en el navegador o usá el botón de foto.");return}
-    var v=$("vid");v.srcObject=stream;try{await v.play()}catch(e){}
-    $("live").hidden=false;$("livebtn").hidden=true;liveOn=true;msg("s2msg","info","Apuntá al comprobante.");liveLoop(v);
-  }
-  async function liveLoop(v){
-    var c=document.createElement("canvas"),x=c.getContext("2d",{willReadFrequently:true}),det=null,n=0,last="",lastT=0;
-    if("BarcodeDetector"in window){try{det=new BarcodeDetector({formats:["qr_code"]})}catch(e){}}
-    while(liveOn){
-      await sleep(120);if(v.readyState<2||busy||!v.videoWidth)continue;n++;
-      var text=null;
-      if(det){try{var r=await det.detect(v);if(r.length)text=r[0].rawValue}catch(e){}}
-      if(!text){c.width=v.videoWidth;c.height=v.videoHeight;x.drawImage(v,0,0,c.width,c.height);
-        if(window.jsQR){var d=x.getImageData(0,0,c.width,c.height),q=jsQR(d.data,d.width,d.height,{inversionAttempts:"dontInvert"});if(q&&q.data)text=q.data}
-        if(!text&&n%3===0)text=zx(c);
-        if(!text&&n%2===0)text=await wasmRead(x.getImageData(0,0,c.width,c.height))}
-      if(text&&(text!==last||Date.now()-lastT>5000)){
-        last=text;lastT=Date.now();busy=true;var ok=await addFromText(text);busy=false;renderS2();
-        if(ok&&navigator.vibrate)try{navigator.vibrate(80)}catch(e){}}
-    }
-  }
-  $("livebtn").addEventListener("click",startLive);
-  $("stoplive").addEventListener("click",stopLive);
-  $("cancel").addEventListener("click",stopLive);
-  $("cont").addEventListener("click",stopLive);
 
   /* ---------- arranque ---------- */
   (function(){
