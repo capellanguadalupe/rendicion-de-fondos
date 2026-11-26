@@ -202,7 +202,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <p class="sub" style="font-size:.82rem">Primero descargá el PDF y adjuntalo en el mail: esta página no puede adjuntar archivos por sí sola.</p>
     </div>
   </section>
-  <p class="sub" style="text-align:center;font-size:.75rem">Versión 11 · escanear comprobante</p>
+  <p class="sub" style="text-align:center;font-size:.75rem">Versión 12 · escanear comprobante</p>
 </main>
 <script>
 (function(){
@@ -320,9 +320,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
     return GASTOS.concat(["Sin tipo"]).filter(function(g){return t[g]}).map(function(g){return[g,t[g]]})}
   function compLabel(v){if(v.sinqr&&!v.nro)return v.tipo+(v.nroTxt?" "+v.nroTxt:"");return v.manual&&!v.nro?v.tipo:v.tipo+" "+v.pv+"-"+v.nro}
   function cmpKey(v){var c=String(v.cuit||"").replace(/\D/g,"");return c.length===11&&v.pv&&v.nro?c+"-"+v.pv+"-"+v.nro:""}
-  async function addFromText(text){
+  async function addFromText(text,foto){
     var v;try{v=parseQR(text)}catch(e){msg("s2msg","bad",e.message||"No se pudo leer el QR.");return false}
-    return claimInv(v);
+    v.foto=foto||null;return claimInv(v);
   }
   async function claimDoc(path,data){
     var ref=db.doc(path),snap=await ref.get();
@@ -367,6 +367,12 @@ button:disabled{opacity:.45;cursor:not-allowed}
     if(window.createImageBitmap){try{return await createImageBitmap(file,{imageOrientation:"from-image"})}catch(e){try{return await createImageBitmap(file)}catch(e2){}}}
     return await new Promise(function(res,rej){var u=URL.createObjectURL(file),im=new Image();
       im.onload=function(){res(im)};im.onerror=function(){rej(new Error("No se pudo abrir la imagen."))};im.src=u});
+  }
+  async function photoOf(file){
+    try{var bmp=await toBitmap(file),W=bw(bmp),H=bh(bmp),sc=Math.min(1,1600/Math.max(W,H)),c=document.createElement("canvas");
+      c.width=Math.max(1,Math.round(W*sc));c.height=Math.max(1,Math.round(H*sc));var x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(bmp,0,0,c.width,c.height);
+      if(bmp.close)try{bmp.close()}catch(e){}
+      return{data:c.toDataURL("image/jpeg",.72),w:c.width,h:c.height}}catch(e){return null}
   }
   function bw(w){return w.naturalWidth||w.width}
   function bh(w){return w.naturalHeight||w.height}
@@ -552,18 +558,18 @@ button:disabled{opacity:.45;cursor:not-allowed}
     var files=Array.prototype.slice.call(e.target.files||[]);e.target.value="";if(!files.length||busy)return;
     busy=true;$("cont").disabled=true;msg("s2msg","info","Leyendo QR…");$("last").innerHTML="";var okc=0,last=null;
     for(var i=0;i<files.length;i++){
-      try{var t=await decodeFile(files[i]);
+      try{var foto=await photoOf(files[i]);var t=await decodeFile(files[i]);
         if(t){try{parseQR(t)}catch(pe){t=null}}
         if(!t){
           var txt="";try{txt=await ocrFile(files[i])}catch(oe){msg("s2msg","bad",oe.message||"No se pudo leer el comprobante.");continue}
           var o=parseTicket(txt);
           if(!(o.cuit||o.nro||o.total)){msg("s2msg","warn","No pude leer datos en la foto. Sacala de nuevo, con el comprobante entero, bien iluminado y sin sombras, o cargalos a mano abajo.");$("sinqr").open=true;continue}
-          sqFill(o);$("sinqr").open=true;confirmBadCuit=false;
+          S.pendFoto=foto;sqFill(o);$("sinqr").open=true;confirmBadCuit=false;
           var falta=[];if(!o.cuit)falta.push("CUIT");if(!o.pv||!o.nro)falta.push("número");if(!o.fecha)falta.push("fecha");if(!o.total)falta.push("total");
           msg("s2msg","warn","Leí los datos de la foto: revisalos contra el comprobante"+(falta.length?" y completá "+falta.join(", "):"")+(o.cuit&&!o.cuitOk?" (el CUIT no pasó la verificación, revisalo con cuidado)":"")+". Después tocá “Agregar comprobante”.");
           try{$("sinqr").scrollIntoView({behavior:"smooth",block:"start"})}catch(e){}
           continue}
-        busy=false;var ok=await addFromText(t);busy=true;if(ok)okc++;last=document.getElementById("s2msg").innerHTML;
+        busy=false;var ok=await addFromText(t,foto);busy=true;if(ok)okc++;last=document.getElementById("s2msg").innerHTML;
       }catch(err){msg("s2msg","bad",err.message||"Error al leer la imagen.")}
     }
     busy=false;renderS2();
@@ -613,9 +619,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
     if(!(imp>0)){msg("s2msg","bad","Ingresá el total.");return}
     if(!fe){msg("s2msg","bad","Ingresá la fecha del comprobante.");return}
     var f=fe.split("-");
-    var v={cae:"",cuit:cuit,pv:pv.padStart(5,"0"),nro:nro.padStart(8,"0"),razon:$("sq_razon").value.trim(),tipo:$("sq_tipo").value,fecha:f[2]+"/"+f[1]+"/"+f[0],importe:Math.round(imp*100)/100,manual:true,sinqr:true};
+    var v={cae:"",cuit:cuit,pv:pv.padStart(5,"0"),nro:nro.padStart(8,"0"),razon:$("sq_razon").value.trim(),tipo:$("sq_tipo").value,fecha:f[2]+"/"+f[1]+"/"+f[0],importe:Math.round(imp*100)/100,manual:true,sinqr:true,foto:S.pendFoto||null};
     busy=true;var ok=await claimInv(v);busy=false;
-    if(ok){sqClear();$("sinqr").open=false}
+    if(ok){S.pendFoto=null;sqClear();$("sinqr").open=false}
     renderS2();
   });
   var confirmBadCuit=false;
@@ -716,6 +722,15 @@ button:disabled{opacity:.45;cursor:not-allowed}
     if(y>250){d.addPage();y=30}
     y=Math.max(y+22,262);d.setDrawColor(23,33,43);d.setLineWidth(.3);d.line(M,y,M+70,y);d.line(W-M-70,y,W-M,y);
     d.setFont("helvetica","normal");d.setFontSize(9);d.setTextColor(95,105,118);d.text(S.worker.name,M,y+5);d.text("Aprobó",W-M-70,y+5);
+    var fotos=S.inv.filter(function(v){return v.foto});
+    fotos.forEach(function(v,k){
+      d.addPage();
+      d.setFont("helvetica","bold");d.setFontSize(9);d.setTextColor(95,105,118);d.text("COMPROBANTE "+(S.inv.indexOf(v)+1)+" DE "+S.inv.length,M,16);
+      d.setFont("helvetica","bold");d.setFontSize(13);d.setTextColor(23,33,43);d.text(compLabel(v)+"  ·  "+money(v.importe),M,23,{maxWidth:W-2*M});
+      d.setFont("helvetica","normal");d.setFontSize(9);d.setTextColor(95,105,118);
+      d.text(((v.razon?v.razon+" · ":"")+v.fecha+" · Gasto: "+(v.gasto||"Sin tipo")+(v.cae?" · CAE "+v.cae:"")),M,29,{maxWidth:W-2*M});
+      var aw=W-2*M,ah=297-36-M,r=Math.min(aw/v.foto.w,ah/v.foto.h),iw=v.foto.w*r,ih=v.foto.h*r;
+      d.addImage(v.foto.data,"JPEG",M+(aw-iw)/2,36,iw,ih)});
     return d.output("arraybuffer");
   }
   function pdfFile(){
