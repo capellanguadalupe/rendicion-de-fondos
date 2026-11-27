@@ -197,12 +197,13 @@ button:disabled{opacity:.45;cursor:not-allowed}
         <input id="mailto" type="email" placeholder="administracion@empresa.com" autocomplete="email"></label>
       <div class="row">
         <a id="mailbtn" class="btn" href="#">Abrir en mi correo</a>
-        <button id="copymail" class="ghost">Copiar asunto y texto</button>
+        <button id="copymail" class="ghost">Copiar planilla</button>
       </div>
-      <p class="sub" style="font-size:.82rem">Primero descargá el PDF y adjuntalo en el mail: esta página no puede adjuntar archivos por sí sola.</p>
+      <p class="sub" style="font-size:.82rem">1) Descargá el PDF. 2) Tocá “Abrir en mi correo”: la planilla se copia sola. 3) En el mail, mantené apretado donde dice “[Pegá acá la planilla]” y elegí Pegar. 4) Adjuntá el PDF y enviá.</p>
+      <div id="planilla" style="overflow-x:auto;margin-top:6px"></div>
     </div>
   </section>
-  <p class="sub" style="text-align:center;font-size:.75rem">Versión 12 · escanear comprobante</p>
+  <p class="sub" style="text-align:center;font-size:.75rem">Versión 13 · escanear comprobante</p>
 </main>
 <script>
 (function(){
@@ -663,28 +664,51 @@ button:disabled{opacity:.45;cursor:not-allowed}
   });
 
   /* ---------- paso 3 ---------- */
+  function esc(t){return String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+  function planilla(){
+    var tot=S.inv.reduce(function(a,v){return a+v.importe},0),has=!S.transfer.none,saldo=S.transfer.amount;
+    var rows=S.inv.map(function(v,i){saldo-=v.importe;
+      return[(i+1)+" · "+compLabel(v),v.fecha,v.razon||(v.cuit?"CUIT "+fmtCuit(v.cuit):"-"),v.gasto||"",money(v.importe),has?money(saldo):"-"]});
+    var top=[[S.empresa.toUpperCase(),"","RENDICION DE GASTOS","","FECHA:",S.fecha],
+      ["NOMBRE: "+S.worker.name,"","","","CENTRO DE COSTOS:",S.cc],
+      ["","TIPO DE RENDICION:",S.tipo,"","TRANSFERENCIA:",has?money(S.transfer.amount):"Sin transferencia"]];
+    var head=["NRO COMPROBANTE","FECHA","PROVEEDOR","DESCRIPCION","IMPORTE","SALDO"];
+    var foot=["TOTAL","","","",money(tot),has?money(S.transfer.amount-tot):"-"];
+    var td="border:1px solid #000;padding:3px 6px;font-family:Arial,sans-serif;font-size:12px;",h="<table style='border-collapse:collapse'>";
+    function row(r,bold,right){return"<tr>"+r.map(function(c,k){return"<td style='"+td+(bold?"font-weight:bold;":"")+(right&&k>=4?"text-align:right;":"")+"'>"+(esc(c)||"&nbsp;")+"</td>"}).join("")+"</tr>"}
+    top.forEach(function(r,i){h+=row(r,i===0&&true,false);if(i<2)h+=row(["","","","","",""],false)});
+    h+=row(["","","","","",""],false)+"<tr><td colspan='6' style='"+td+"font-weight:bold'>COMPROBANTES</td></tr>"+row(head,false);
+    rows.forEach(function(r){h+=row(r,false,true)});h+=row(foot,true,true)+"</table>";
+    var tsv=top.concat([[""],["COMPROBANTES"],head],rows,[foot]).map(function(r){return r.join("\t")}).join("\n");
+    return{html:h,text:tsv};
+  }
   function mailText(){
-    var total=S.inv.reduce(function(a,v){return a+v.importe},0);
     var subject="Rendición de fondos "+S.empresa+" - "+S.worker.name+" - "+S.fecha;
-    var lines=["Hola,","","Adjunto la rendición de fondos.","","Empresa: "+S.empresa,"Fecha de rendición: "+S.fecha,"Nombre: "+S.worker.name,
-      "Centro de costos: "+S.cc,"Tipo de rendición: "+S.tipo,"Transferencia: "+(S.transfer.none?"Sin transferencia":money(S.transfer.amount)),"Comprobantes: "+S.inv.length+" por "+money(total),"","Saludos,",S.worker.name];
+    var lines=["Hola,","","Adjunto la rendición de fondos para su aprobación.","","[Pegá acá la planilla]","","Saludos,",S.worker.name];
     return{subject:subject,body:lines.join("\n")};
+  }
+  async function copyPlanilla(){
+    var p=planilla();
+    try{if(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
+        await navigator.clipboard.write([new ClipboardItem({"text/html":new Blob([p.html],{type:"text/html"}),"text/plain":new Blob([p.text],{type:"text/plain"})})]);return true}
+      await navigator.clipboard.writeText(p.text);return true}catch(e){return false}
   }
   function renderS3(){
     var total=S.inv.reduce(function(a,v){return a+v.importe},0);
     dl($("summary3"),[["Empresa",S.empresa],["Fecha de rendición",S.fecha],["Nombre",S.worker.name],["Centro de costos",S.cc],["Tipo de rendición",S.tipo],
       ["Transferencia",S.transfer.none?"Sin transferencia":money(S.transfer.amount)],["Rendido ("+S.inv.length+" comp.)",money(total)]]);
-    updateMail();
+    $("planilla").innerHTML=planilla().html;updateMail();
   }
   function updateMail(){var m=mailText(),to=$("mailto").value.trim();
     $("mailbtn").href="mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(m.subject)+"&body="+encodeURIComponent(m.body)}
   $("mailto").addEventListener("input",updateMail);
-  $("mailbtn").addEventListener("click",function(){msg("s3msg","info","Si no se abrió tu correo, usá “Copiar asunto y texto” y pegalos en un mail nuevo con el PDF adjunto.")});
-  $("copymail").addEventListener("click",function(){
-    var m=mailText(),txt="Asunto: "+m.subject+"\n\n"+m.body;
-    var done=function(){msg("s3msg","ok","Asunto y texto copiados. Pegalos en un mail nuevo y adjuntá el PDF.")};
-    var fail=function(){var ta=document.createElement("textarea");ta.value=txt;ta.style.cssText="width:100%;height:160px";$("s3msg").innerHTML="";$("s3msg").appendChild(ta);ta.select()};
-    try{navigator.clipboard.writeText(txt).then(done,fail)}catch(e){fail()}
+  $("mailbtn").addEventListener("click",async function(){
+    var ok=await copyPlanilla();
+    msg("s3msg",ok?"ok":"warn",ok?"Planilla copiada. En el mail, mantené apretado donde dice “[Pegá acá la planilla]” y elegí Pegar. Después adjuntá el PDF.":"No pude copiar la planilla sola: usá el botón “Copiar planilla”, o seleccionala desde acá abajo.");
+  });
+  $("copymail").addEventListener("click",async function(){
+    var ok=await copyPlanilla();
+    msg("s3msg",ok?"ok":"warn",ok?"Planilla copiada. Pegala en el cuerpo del mail.":"No pude copiarla sola. Seleccionala acá abajo y copiala a mano.");
   });
 
   function buildPDF(){
